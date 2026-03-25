@@ -541,7 +541,7 @@ visualTab:CreateDivider()
 visualTab:CreateButton({
     Name = "Visible Hitbox",
     Callback = function()
-        local root, hitbox = getRoot(plr)
+        local root, hitbox = getRoot(getChar(plr))
         if hitbox then
             hitbox.Transparency = 0
         else
