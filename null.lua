@@ -101,7 +101,7 @@ end
 
 local function getRoot(char, humanoid)
     if not humanoid then humanoid = getHuman(char) end
-    return char:FindFirstChild("HumanoidRootPart") or (humanoid and humanoid.RootPart)
+    return char:FindFirstChild("HumanoidRootPart") or (humanoid and humanoid.RootPart), char:FindFirstChild("Hitbox")
 end
 
 local function getAvailableGifts()
@@ -230,8 +230,7 @@ end
 local function goTo(part, activeTripmines, activeEnemies)
     if not part then return end
     local char = getChar(plr)
-    local root = getRoot(char)
-    local hitbox = char:FindFirstChild("Hitbox")
+    local root, hitbox = getRoot(char)
     if not root or not hitbox then return end
 
     local pos = part:IsA("Model") and part:GetPivot().Position or part.Position
@@ -245,6 +244,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     local blocked = pathBlocked(pos, activeTripmines, activeEnemies)
     if blocked and (part.Name == "Gift" or part.Name == "GoldGift") then
         root.Position = pos
+        hitbox.Position = pos
         task.wait(.1)
         collectGift:FireServer(part)
         return
@@ -252,6 +252,7 @@ local function goTo(part, activeTripmines, activeEnemies)
 
     local info = TweenInfo.new(dist / 120, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
     local tween = TweenService:Create(root, info, {Position = pos})
+    local tween = TweenService:Create(hitbox, info, {Position = pos})
     tween:Play()
 
     task.spawn(function()
@@ -534,6 +535,24 @@ visualTab:CreateButton({
         tripEsp.Enabled = true
         tripEsp.FillTransparency = 0.75
         tripEsp.OutlineTransparency = 0
+    end
+})
+visualTab:CreateDivider()
+visualTab:CreateButton({
+    Name = "Visible Hitbox",
+    Callback = function()
+        local root, hitbox = getRoot(plr)
+        if hitbox then
+            hitbox.Transparency = 0
+        else
+            notif("You have no hitbox. (Dead?)")
+        end
+    end
+})
+visualTab:CreateButton({
+    Name = "Visible Void",
+    Callback = function()
+        workspace.KillVoid.Transparency = 0
     end
 })
 
