@@ -86,6 +86,7 @@ local function notif(text: string, title: string, dur: number)
 end
 
 local mainTab = Window:CreateTab("Main")
+local keyTab = Window:CreateTab("Keybinds")
 
 local function getChar(player)
     return player.Character or player.CharacterAdded:Wait()
@@ -231,7 +232,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     if not root or not hitbox then return end
 
     local pos = part:IsA("Model") and part:GetPivot().Position or part.Position
-    if part.Name == "Spawn" then pos += Vector3.new(0,3,0) end
+    if part.Name == "Spawn" then pos += Vector3.new(0,4,0) end
     local dist = (pos - root.Position).Magnitude
     if dist == 0 then return end
 
@@ -241,7 +242,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     local blocked = pathBlocked(pos, activeTripmines, activeEnemies)
     if blocked and (part.Name == "Gift" or part.Name == "GoldGift") then
         root.Position = pos
-        task.wait(.04)
+        task.wait(.1)
         collectGift:FireServer(part)
         return
     end
@@ -297,16 +298,17 @@ end
 local function disableEnemy(enemyName, touchPart)
     local enemy = enemies[enemyName]
     if not enemy then notif("No enemy with name:", enemyName) return end
+    if enemy:HasTag(".Disabled") then return end
     
     disableFunction = {
         Basic = function()
             for _, sameenemy in enemies:GetChildren() do
                 if sameenemy.Name  ~= enemyName then continue end
                 local touch = enemy:FindFirstChild("TouchInterest", true)
-                if touch and not enemy:HasTag(".Disabled") then
+                if touch then
                     touch:Destroy()
                     enemy:AddTag(".Disabled")
-                elseif not touch and not enemy:HasTag(".Disabled") then
+                else
                     notif(enemyName.." currently cannot be disabled or still loading.")
                     continue
                 end
@@ -316,13 +318,13 @@ local function disableEnemy(enemyName, touchPart)
         Skinwalker = function()
             local skinwalkers = workspace.Skinwalkers
             local isFollowing = false
+            if #skinwalkers:GetChildren() == 0 then
+                notif("Skinwalker isn't following you yet.")
+                return
+            end
 
             for i, skinwalker in skinwalkers:GetChildren() do
                 if enemy:HasTag(".Disabled") then isFollowing = true return end
-                if #skinwalkers:GetChildren() == 0 then
-                    notif("Skinwalker isn't following you yet.")
-                    return
-                end
 
                 local root = getRoot(skinwalker)
                 local touch = root and root:FindFirstChildOfClass("TouchTransmitter")
@@ -345,6 +347,11 @@ local function disableEnemy(enemyName, touchPart)
         end,
         Guardian = function()
             for _, b in skullp:GetChildren() do
+                b:Destroy()
+            end
+        end,
+        ShadowGuardian = function()
+            for _, b in vskullp:GetChildren() do
                 b:Destroy()
             end
         end
@@ -499,6 +506,34 @@ mainTab:CreateButton({
     end
 })
 
+----------------key
+
+keyTab:CreateKeybind({
+    Name = "Collect All Gifts",
+    CurrentKeybind = "P",
+    HoldToInteract = false,
+    Callback = function(key)
+        collect("all")
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Disable All Enemies",
+    CurrentKeybind = "H",
+    HoldToInteract = false,
+    Callback = function(key)
+        selectedEnemies = updateEnemySelection()
+        task.wait()
+        disableSelected()
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Teleport to Spawn",
+    CurrentKeybind = "Home",
+    HoldToInteract = false,
+    Callback = function()
+        getRoot(getChar(plr)).Position = spawnPart.Position + Vector3.new(0,4,0)
+    end
+})
 
 ---------connections!
 
