@@ -18,6 +18,8 @@ local skullp = items.SkullProjectile
 local vskullp = items.Skull2Projectile
 local fleshp = items.FleshProjectile
 local enemies = workspace.Enemies
+local giftEsp = workspace.Showlocation
+local tripEsp = workspace.ShowlocationTrip
 local giftsLabel = plrgui.GUI.Gifts
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
@@ -86,6 +88,7 @@ local function notif(text: string, title: string, dur: number)
 end
 
 local mainTab = Window:CreateTab("Main")
+local visualTab = Window:CreateTab("Visual")
 local keyTab = Window:CreateTab("Keybinds")
 
 local function getChar(player)
@@ -354,6 +357,14 @@ local function disableEnemy(enemyName, touchPart)
             for _, b in vskullp:GetChildren() do
                 b:Destroy()
             end
+        end,
+        Springer = function()
+            if enemy:HasTag(".Disabled") then return end
+            local shockwave = enemy:FindFirstChild("SpringerShockwave")
+            if shockwave then
+                shockwave:Destroy()
+                notif("Springer shockwave disabled. Smashing cannot be disabled.")
+            end
         end
     }
 
@@ -503,6 +514,26 @@ mainTab:CreateButton({
     Name = "Find Best Choice (BIAS)",
     Callback = function()
         notif(tostring(findBestSelection()), "Best Choice:")
+    end
+})
+
+---------------visual
+
+visualTab:CreateButton({
+    Name = "Enable Better Gift ESP",
+    Callback = function()
+        giftEsp.Enabled = true
+        giftEsp.FillColor = Color3.new(1,1,1)
+        giftEsp.FillTransparency = 0.75
+        giftEsp.OutlineTransparency = 0
+    end
+})
+visualTab:CreateButton({
+    Name = "Enable Better Tripmine ESP",
+    Callback = function()
+        tripEsp.Enabled = true
+        tripEsp.FillTransparency = 0.75
+        tripEsp.OutlineTransparency = 0
     end
 })
 
