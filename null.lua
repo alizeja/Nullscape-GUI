@@ -332,37 +332,31 @@ local function disableEnemy(enemyName, touchPart)
                     sameenemy:AddTag(".Disabled")
                     n += 1
                 else
-                    notif(enemyName.." currently cannot be disabled or still loading.")
                     continue
                 end
             end
             if n > 0 then
                 notif(tostring(n).." "..enemyName.."(s) disabled.")
+            else
+                notif(enemyName.." cannot be disabled.")
             end
         end,
         Skinwalker = function()
             local skinwalkers = workspace.Skinwalkers
-            local isFollowing = false
             if #skinwalkers:GetChildren() == 0 then
                 notif("Skinwalker isn't following you yet.")
                 return
             end
 
             for i, skinwalker in skinwalkers:GetChildren() do
-                if enemy:HasTag(".Disabled") then isFollowing = true return end
-
                 local root = getRoot(skinwalker)
                 local touch = root and root:FindFirstChildOfClass("TouchTransmitter")
                 if touch then
                     touch:Destroy()
                 end
-                isFollowing = true
             end
 
-            if isFollowing then
-                enemy:AddTag(".Disabled")
-                notif("Skinwalker disabled.")
-            end
+            notif("Skinwalkers disabled.")
         end,
         Flesh = function()
             for _, b in fleshp:GetChildren() do
