@@ -25,8 +25,8 @@ local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 
-
 local tweening = false
+local connections = {}
 
 local dangerlevels = {
     Bell = 0.5,
@@ -91,6 +91,7 @@ end
 local mainTab = Window:CreateTab("Main")
 local visualTab = Window:CreateTab("Visual")
 local keyTab = Window:CreateTab("Keybinds")
+local debugTab = Window:CreateTab("Debug")
 
 local function getChar(player)
     return player.Character or player.CharacterAdded:Wait()
@@ -113,7 +114,7 @@ local function getAvailableGifts()
         if gift.Transparency ~= 1 then
             table.insert(giftTable, gift)
 
-            gift:GetPropertyChangedSignal("Transparency"):Connect(function()
+            local gac = gift:GetPropertyChangedSignal("Transparency"):Connect(function()
                 if gift.Transparency == 1 then
                     for i, g in ipairs(giftTable) do
                         if g == gift then
@@ -123,6 +124,7 @@ local function getAvailableGifts()
                     end
                 end
             end)
+            table.insert(connections, gac)
         end
     end
 
@@ -648,9 +650,33 @@ keyTab:CreateKeybind({
     end
 })
 
+
+debugTab:CreateButton({
+    Name = "Destroy GUI/Panic",
+    Callback = function()
+
+    end
+})
+
 ---------connections!
 
-enemies.ChildAdded:Connect(updateEnemySelection)
-enemies.ChildRemoved:Connect(updateEnemySelection)
-currentRooms.ChildAdded:Connect(updateAltarSelection)
-currentRooms.ChildRemoved:Connect(updateAltarSelection)
+local eca = enemies.ChildAdded:Connect(updateEnemySelection)
+table.insert(connections, eca)
+local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
+table.insert(connections, ecr)
+local crca = currentRooms.ChildAdded:Connect(updateAltarSelection)
+table.insert(connections, crca)
+local crcr = currentRooms.ChildRemoved:Connect(updateAltarSelection)
+table.insert(connections, crcr)
+
+---- destroy
+function destroyGui()
+    notif("Destroying...", "Nullscape GUI:")
+    for _, c in connections do
+        c:Disconnect()
+        print(c, "disconnected")
+    end
+    print("destroying rayfield")
+    task.wait(.5)
+    Rayfield:Destroy()
+end
