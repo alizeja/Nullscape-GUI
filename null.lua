@@ -252,8 +252,9 @@ local function goTo(part, activeTripmines, activeEnemies)
 
     local info = TweenInfo.new(dist / 120, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
     local tween = TweenService:Create(root, info, {Position = pos})
-    local tween = TweenService:Create(hitbox, info, {Position = pos})
+    local tweentwo = TweenService:Create(hitbox, info, {Position = pos})
     tween:Play()
+    tweentwo:Play()
 
     task.spawn(function()
         while tween.PlaybackState == Enum.PlaybackState.Playing do
