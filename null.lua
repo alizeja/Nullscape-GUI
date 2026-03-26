@@ -654,7 +654,7 @@ keyTab:CreateKeybind({
 debugTab:CreateButton({
     Name = "Destroy GUI/Panic",
     Callback = function()
-
+        destroyGui()
     end
 })
 
