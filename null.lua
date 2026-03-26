@@ -565,6 +565,7 @@ local function activateAltar()
         local root = getRoot(getChar(plr))
         if root then
             local prev = root.CFrame
+            task.wait()
             root.CFrame = pos
             task.wait(.1)
             selectedPrompt:InputHoldBegin()
