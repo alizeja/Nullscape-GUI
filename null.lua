@@ -370,18 +370,7 @@ local function disableEnemy(enemyName, touchPart)
             end
             disableFunction.Basic()
         end,
-        Guardian = function()
-            for _, b in skullp:GetChildren() do
-                b:Destroy()
-            end
-        end,
-        ShadowGuardian = function()
-            for _, b in vskullp:GetChildren() do
-                b:Destroy()
-            end
-        end,
         Springer = function()
-            if enemy:HasTag(".Disabled") then return end
             local shockwave = enemy:FindFirstChild("SpringerShockwave")
             if shockwave then
                 shockwave:Destroy()
