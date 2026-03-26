@@ -562,16 +562,18 @@ local function activateAltar()
         local pPart:BasePart = selectedPrompt.Parent
         if not pPart then notif("Selected Altar does not have a prompt. (Activated already?)") return end
         local pos = pPart.CFrame + Vector3.new(0,0,3)
-        local root = getRoot(getChar(plr))
+        local root, hitbox = getRoot(getChar(plr))
         if root then
             local prev = root.CFrame
             task.wait()
             root.CFrame = pos
+            hitbox.CFrame = pos
             task.wait(.1)
             selectedPrompt:InputHoldBegin()
             task.wait(selectedPrompt.HoldDuration)
-            selectedPrompt.InputHoldEnd()
+            selectedPrompt:InputHoldEnd()
             root.CFrame = prev
+            hitbox.CFrame = prev
         end
     else
         notif("No Altar Selected")
