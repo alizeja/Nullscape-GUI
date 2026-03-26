@@ -657,7 +657,7 @@ keyTab:CreateKeybind({
     Callback = function()
         local root, hitbox = getRoot(getChar(plr))
         pos = spawnPart.Position + Vector3.new(0,4,0)
-        root..Position = pos
+        root.Position = pos
         hitbox.Position = pos
     end
 })
