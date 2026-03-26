@@ -23,6 +23,7 @@ local tripEsp = workspace.ShowlocationTrip
 local giftsLabel = plrgui.GUI.Gifts
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
+local currentRooms = workspace.CurrentRooms
 
 
 local tweening = false
@@ -302,23 +303,41 @@ local function findBestSelection()
     return bestchoice.ProximityPrompt.ActionText
 end
 
+local function getAltarPrompts()
+    local prompts = {}
+    for _, p in currentRooms:GetDescendants() do
+        if p.Name == "Prompt" and p:IsA("ProximityPrompt") then
+            table.insert(prompts, {
+                Prompt = p,
+                Text = p.ObjectText
+            })
+        end
+    end
+
+    return prompts
+end
+
 local function disableEnemy(enemyName, touchPart)
     local enemy = enemies[enemyName]
     if not enemy then notif("No enemy with name:", enemyName) return end
     
     disableFunction = {
         Basic = function()
+            local n = 0
             for _, sameenemy in enemies:GetChildren() do
                 if sameenemy.Name  ~= enemyName or sameenemy:HasTag(".Disabled") then continue end
                 local touch = sameenemy:FindFirstChild("TouchInterest", true)
                 if touch then
                     touch:Destroy()
                     sameenemy:AddTag(".Disabled")
+                    n += 1
                 else
                     notif(enemyName.." currently cannot be disabled or still loading.")
                     continue
                 end
-                notif(enemyName.." disabled.")
+            end
+            if n > 0 then
+                notif(tostring(n).." "..enemyName.."(s) disabled.")
             end
         end,
         Skinwalker = function()
@@ -398,7 +417,7 @@ local function collect(which)
             local tween = goTo(gift, activeTripmines, activeEnemies)
             if tween then tween.Completed:Wait() end
 
-            task.wait(.035)
+            task.wait(.02)
         end
         goTo(spawnPart, activeTripmines, activeEnemies)
         tweening = false
@@ -418,7 +437,7 @@ local function collect(which)
             local tween = goTo(gift, activeTripmines, activeEnemies)
             if tween then tween.Completed:Wait() end
 
-            task.wait(.035)
+            task.wait(.02)
         end
         tweening = false
         if getGoldenAfter then task.wait(1) collectGolden() end
@@ -511,6 +530,59 @@ mainTab:CreateButton({
     end
 })
 
+mainTab:CreateSection("Altars")
+local altarVal = {}
+local selectedAltar
+local selectedPrompt: ProximityPrompt
+local selectAltars = mainTab:CreateDropdown({
+   Name = "Select Altar",
+   Options = {},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Callback = function(Options)
+        selectedAltar = Options[1]
+        selectedPrompt = altarVal[selectedAltar]
+   end
+})
+
+local function updateAltarSelection()
+    local options = {}
+    for _, p in ipairs(getAltarPrompts()) do
+        local text = p.Text
+        altarVal[text] = p.Prompt
+        table.insert(options, text)
+    end
+
+    selectAltars:Refresh(options)
+end
+updateAltarSelection()
+
+local function activateAltar()
+    if selectedAltar and selectedPrompt then
+        local pPart:BasePart = selectedPrompt.Parent
+        if not pPart then notif("Selected Altar does not have a prompt. (Activated already?)") return end
+        local pos = pPart.CFrame + Vector3.new(0,0,3)
+        local root = getRoot(getChar(plr))
+        if root then
+            local prev = root.CFrame
+            root.CFrame = pos
+            task.wait(.1)
+            selectedPrompt:InputHoldBegin()
+            task.wait(selectedPrompt.HoldDuration)
+            selectedPrompt.InputHoldEnd()
+            root.CFrame = prev
+        end
+    else
+        notif("No Altar Selected")
+    end
+end
+mainTab:CreateButton({
+    Name = "Activate Selected Altar",
+    Callback = function()
+        activateAltar()
+    end
+})
+
 mainTab:CreateSection("Intermission")
 
 mainTab:CreateButton({
@@ -591,3 +663,5 @@ keyTab:CreateKeybind({
 
 enemies.ChildAdded:Connect(updateEnemySelection)
 enemies.ChildRemoved:Connect(updateEnemySelection)
+currentRooms.ChildAdded:Connect(updateAltarSelection)
+currentRooms.ChildRemoved:Connect(updateAltarSelection)
