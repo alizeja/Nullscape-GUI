@@ -252,9 +252,8 @@ local function goTo(part, activeTripmines, activeEnemies)
 
     local info = TweenInfo.new(dist / 120, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
     local tween = TweenService:Create(root, info, {Position = pos})
-    local tweentwo = TweenService:Create(hitbox, info, {Position = pos})
     tween:Play()
-    tweentwo:Play()
+    TweenService:Create(hitbox, info, {Position = pos}):Play()
 
     task.spawn(function()
         while tween.PlaybackState == Enum.PlaybackState.Playing do
@@ -264,6 +263,9 @@ local function goTo(part, activeTripmines, activeEnemies)
             end
             task.wait(0.05)
         end
+    end)
+    tween.Completed:Connect(function()
+        hitbox.Position = root.Position
     end)
 
     return tween
@@ -303,16 +305,15 @@ end
 local function disableEnemy(enemyName, touchPart)
     local enemy = enemies[enemyName]
     if not enemy then notif("No enemy with name:", enemyName) return end
-    if enemy:HasTag(".Disabled") then return end
     
     disableFunction = {
         Basic = function()
             for _, sameenemy in enemies:GetChildren() do
-                if sameenemy.Name  ~= enemyName then continue end
-                local touch = enemy:FindFirstChild("TouchInterest", true)
+                if sameenemy.Name  ~= enemyName or sameenemy:HasTag(".Disabled") then continue end
+                local touch = sameenemy:FindFirstChild("TouchInterest", true)
                 if touch then
                     touch:Destroy()
-                    enemy:AddTag(".Disabled")
+                    sameenemy:AddTag(".Disabled")
                 else
                     notif(enemyName.." currently cannot be disabled or still loading.")
                     continue
