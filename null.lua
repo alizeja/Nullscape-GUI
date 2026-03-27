@@ -4,11 +4,13 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local plr = Players.LocalPlayer
 
 local events = ReplicatedStorage.Events
 
+local Camera = workspace.CurrentCamera
 local spawnPart = workspace.Spawn
 local items = workspace.ItemPools
 local gifts = items.NormalGifts
@@ -21,9 +23,16 @@ local tripEsp = workspace.ShowlocationTrip
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
+local pads = workspace.JumpPads
 
 local tweening = false
 local aura = false
+local visibleHitbox = false
+local canInstaGrapple = false
+local canToggleAura = true
+local canEzCollectAll = true
+local canGoHome = true
+local canEzDisableAll = true
 local giftConnections = {}
 local connections = {}
 
@@ -127,11 +136,11 @@ local function getAvailableGifts()
         table.insert(giftConnections, gtc)
     end
 
-    for _, gift in ipairs(gifts:GetChildren()) do
+    for _, gift in gifts:GetChildren() do
         trackGift(gift, availableNormalGifts)
     end
 
-    for _, gift in ipairs(goldengifts:GetChildren()) do
+    for _, gift in goldengifts:GetChildren() do
         trackGift(gift, availableGoldenGifts)
     end
 end
@@ -139,7 +148,7 @@ getAvailableGifts()
 
 local function getActiveTripmines()
     local active = {}
-    for _, mine in ipairs(tripmines:GetChildren()) do
+    for _, mine in tripmines:GetChildren() do
         if mine.Transparency ~= 1 then
             table.insert(active, mine)
         end
@@ -149,7 +158,7 @@ end
 
 local function getActiveEnemies()
     local active = {}
-    for _, enemy in ipairs(enemies:GetChildren()) do
+    for _, enemy in enemies:GetChildren() do
         table.insert(active, enemy)
     end
     return active
@@ -170,7 +179,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     local maxY = math.max(rootPos.Y + fakeSize.Y/2, targetPos.Y + fakeSize.Y/2)
     local maxZ = math.max(rootPos.Z + fakeSize.Z/2, targetPos.Z + fakeSize.Z/2)
 
-    for _, mine in ipairs(activeTripmines) do
+    for _, mine in activeTripmines do
         local pos = mine.Position
         local size = mine.Size
         local minMx, maxMx = pos.X - size.X/2, pos.X + size.X/2
@@ -185,7 +194,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
             return true
         end
     end
-    for _, enemy in ipairs(activeEnemies) do
+    for _, enemy in activeEnemies do
         if enemy:HasTag(".Disabled") then continue end
         local pos = enemy.Position
         local size = enemy.Size
@@ -317,29 +326,35 @@ local function getAltarPrompts()
     return prompts
 end
 
-local function disableEnemy(enemyName, touchPart)
-    local enemy = enemies[enemyName]
-    if not enemy then notif("No enemy with name:", enemyName) return end
-    
-    disableFunction = {
-        Basic = function()
-            local n = 0
-            for _, sameenemy in enemies:GetChildren() do
-                if sameenemy.Name  ~= enemyName then continue end
-                local touch = sameenemy:FindFirstChild("TouchInterest", true)
-                if touch then
-                    touch:Destroy()
-                    n += 1
-                else
-                    continue
-                end
+local function disableEnemy(enemyName)
+    local function loopEnemies(name, remove, list)
+        list = list or enemies
+        local n = 0
+
+        for _, sameenemy in list:GetChildren() do
+            if sameenemy.Name ~= name then continue end
+
+            local part = sameenemy:FindFirstChild(remove, true)
+            if part then
+                part:Destroy()
+                n += 1
             end
+        end
+
+        return n
+    end
+
+    local disableFunction = {
+        Basic = function(name)
+            local n = loopEnemies(name, "TouchInterest")
+
             if n > 0 then
-                notif(tostring(n).." "..enemyName.."(s) disabled.")
+                notif(tostring(n).." "..name.."(s) disabled.")
             else
-                notif(enemyName.." cannot be disabled, or already disabled.")
+                notif(name.." cannot be disabled, or already disabled.")
             end
         end,
+
         Skinwalker = function()
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
@@ -347,31 +362,26 @@ local function disableEnemy(enemyName, touchPart)
                 return
             end
 
-            for i, skinwalker in skinwalkers:GetChildren() do
-                local root = getRoot(skinwalker)
-                local touch = root and root:FindFirstChildOfClass("TouchTransmitter")
-                if touch then
-                    touch:Destroy()
-                end
-            end
+            local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
 
-            notif("Skinwalkers disabled.")
+            if n > 0 then
+                notif(tostring(n).." Skinwalker(s) disabled.")
+            else
+                notif("Skinwalkers already disabled.")
+            end
         end,
+
         Flesh = function()
             for _, b in fleshp:GetChildren() do
                 b:Destroy()
             end
-            disableFunction.Basic()
+
+            disableFunction.Basic("Flesh", "TouchInterest")
         end,
+
         Springer = function()
-            local n = 0
-            for _, sameenemy in enemies:GetChildren() do
-                local shockwave = sameenemy:FindFirstChild("SpringerShockwave")
-                if shockwave then
-                    shockwave:Destroy()
-                    n += 1
-                end
-            end
+            local n = loopEnemies("Springer", "SpringerShockwave")
+
             if n > 0 then
                 notif(tostring(n).." Springer(s) shockwaves disabled. Cannot disable smashing.")
             else
@@ -381,10 +391,62 @@ local function disableEnemy(enemyName, touchPart)
     }
 
     if disableFunction[enemyName] then
-        disableFunction[enemyName]()
+        disableFunction[enemyName](enemyName)
     else
-        disableFunction.Basic()
+        disableFunction.Basic(enemyName)
     end
+end
+
+local function GetClosestPad()
+    local localChar = getChar(plr)
+    if not localChar then return nil end
+    print("got char")
+
+    local root,hitbox = getRoot(localChar)
+    if not root then return nil end
+    print("got root")
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {localChar}
+    print("set raycast params")
+
+    local badColor = Color3.fromRGB(152, 24, 24)
+    local closest = nil
+    local dist = 0
+    print(badColor, closest, dist)
+
+    print("getting pads")
+    for _, part in pads:GetChildren() do
+        if part.Color == badColor then print("bad color") continue end
+        local mag = (root.Position - part.Position).Magnitude
+        if mag > dist then print (mag, ">", dist) continue end
+
+        print("setting up raycast")
+        local origin = root.Position
+        local direction = part.Position - origin
+
+        local result = workspace:Raycast(origin, direction, rayParams)
+        print("running raycast")
+        local visible = false
+
+        if result then
+            local hit = result.Instance
+            if hit:IsDescendantOf(pads) then
+                visible = true
+            else
+                visible = false
+            end
+        end
+
+        if visible then
+            print("it's visible. dist:",mag)
+            dist = mag
+            closest = part
+        end
+    end
+
+    return closest
 end
 
 ---------------------collection
@@ -460,7 +522,7 @@ mainTab:CreateButton({
         collect("golden")
     end
 })
-mainTab:CreateToggle({
+local ga = mainTab:CreateToggle({
     Name = "Collect Aura",
     CurrentValue = false,
     Callback = function(Value)
@@ -486,9 +548,13 @@ local function updateEnemySelection()
     local seen = {}
 
     local activeEnemies = getActiveEnemies()
-    if not activeEnemies or #activeEnemies == 0 then return end
+    if not activeEnemies or #activeEnemies == 0 then
+        selectEnemies:Refresh({})
+        selectEnemies:Set({})
+        return {}
+    end
 
-    for _, enemy in ipairs(activeEnemies) do
+    for _, enemy in activeEnemies do
         if not seen[enemy.Name] then
             seen[enemy.Name] = true
             table.insert(enemiesactive, enemy.Name)
@@ -503,10 +569,23 @@ updateEnemySelection()
 local function disableSelected()
     if selectedEnemies then
         for _, enemy in selectedEnemies do
-            disableEnemy(enemy)
+            task.spawn(function()
+                disableEnemy(enemy)
+            end)
         end
     else
         notif("No Enemy Selected")
+    end
+end
+local function disableAll()
+    local allenemies = updateEnemySelection()
+    if not allenemies or #allenemies == 0 then
+        notif("No enemies available.")
+        return
+    end
+
+    for _, enemy in allenemies do
+        disableEnemy(enemy)
     end
 end
 
@@ -519,16 +598,16 @@ mainTab:CreateButton({
 mainTab:CreateButton({
     Name = "Disable All",
     Callback = function()
-        selectedEnemies = updateEnemySelection()
-        task.wait()
-        disableSelected()
+        disableAll()
     end
 })
 
 mainTab:CreateSection("Altars")
 local altarVal = {}
 local selectedAltar
-local selectedPrompt: ProximityPrompt
+local selectedPrompt
+local activating = false
+
 local selectAltars = mainTab:CreateDropdown({
    Name = "Select Altar",
    Options = {},
@@ -541,40 +620,56 @@ local selectAltars = mainTab:CreateDropdown({
 })
 
 local function updateAltarSelection()
+    altarVal = {}
+
     local n = 1
     local options = {}
-    for _, p in ipairs(getAltarPrompts()) do
+
+    for _, p in getAltarPrompts() do
         local text = n..". "..p.Text
         altarVal[text] = p.Prompt
-        n += 1
         table.insert(options, text)
+        n += 1
     end
 
     selectAltars:Refresh(options)
 end
+
 updateAltarSelection()
 
 local function activateAltar()
-    if selectedAltar and selectedPrompt then
-        local pPart:BasePart = selectedPrompt.Parent
-        if not pPart then notif("Selected Altar does not have a prompt. (Activated already?)") return end
-        local pos = pPart.CFrame + Vector3.new(0,0,3)
-        local root, hitbox = getRoot(getChar(plr))
-        if root then
-            local prev = root.CFrame
-            task.wait()
-            root.CFrame = pos
-            hitbox.CFrame = pos
-            task.wait(.1)
-            selectedPrompt:InputHoldBegin()
-            task.wait(selectedPrompt.HoldDuration)
-            selectedPrompt:InputHoldEnd()
-            root.CFrame = prev
-            hitbox.CFrame = prev
-        end
-    else
-        notif("No Altar Selected")
+    if activating then return end
+    activating = true
+
+    if not selectedPrompt or not selectedPrompt.Parent then
+        notif("Altar no longer exists.")
+        activating = false
+        return
     end
+
+    local pPart = selectedPrompt.Parent
+    local char = getChar(plr)
+    local root, hitbox = getRoot(char)
+    if not root or not hitbox then
+        activating = false
+        return
+    end
+
+    local prev = root.CFrame
+    local pos = pPart.CFrame + pPart.CFrame.LookVector * -3
+    root.CFrame = pos
+    hitbox.CFrame = pos
+
+    repeat task.wait()
+    until (root.Position - pPart.Position).Magnitude < 6
+
+    fireproximityprompt(selectedPrompt)
+
+    task.wait(0.1)
+
+    root.CFrame = prev
+    hitbox.CFrame = prev
+    activating = false
 end
 mainTab:CreateButton({
     Name = "Activate Selected Altar",
@@ -612,15 +707,11 @@ visualTab:CreateButton({
     end
 })
 visualTab:CreateDivider()
-visualTab:CreateButton({
+local vh = visualTab:CreateToggle({
     Name = "Visible Hitbox",
-    Callback = function()
-        local root, hitbox = getRoot(getChar(plr))
-        if hitbox then
-            hitbox.Transparency = 0
-        else
-            notif("You have no hitbox. (Dead?)")
-        end
+    CurrentValue = false,
+    Callback = function(Value)
+        visibleHitbox = Value
     end
 })
 visualTab:CreateButton({
@@ -637,6 +728,7 @@ keyTab:CreateKeybind({
     CurrentKeybind = "P",
     HoldToInteract = false,
     Callback = function(key)
+        if not canEzCollectAll then return end
         collect("all")
     end
 })
@@ -645,9 +737,53 @@ keyTab:CreateKeybind({
     CurrentKeybind = "H",
     HoldToInteract = false,
     Callback = function(key)
+        if not canEzDisableAll then return end
         selectedEnemies = updateEnemySelection()
         task.wait()
         disableSelected()
+    end
+})
+local canPress = true
+keyTab:CreateKeybind({
+    Name = "Instantly Grapple to Nearest Jump Pad (Grappler Class Needed)",
+    CurrentKeybind = "Q",
+    HoldToInteract = false,
+    Callback = function(key)
+        if not canInstaGrapple then return end
+        local sendingEvent = false
+
+        if canPress then
+            print("can press, now disabling...")
+            canPress = false
+            local target = GetClosestPad()
+            if not target then
+                print("no target")
+                canPress = true
+                return
+            end
+            local cf = CFrame.new(Camera.CFrame.Position, target.Position)
+            print("setting camera cframe:", cf)
+            Camera.CFrame = cf
+            print("sending key event")
+            sendingEvent = true
+            task.spawn(function()
+                while sendingEvent do
+                    if not sendingEvent then break end
+                    Camera.CFrame = cf
+                    task.wait()
+                end
+            end)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            print("unsending key event")
+            task.wait(0.01)
+            sendingEvent = false
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            
+            print("enable pressing")
+            task.delay(0.05, function()
+                canPress = true
+            end)
+        end
     end
 })
 keyTab:CreateKeybind({
@@ -655,14 +791,67 @@ keyTab:CreateKeybind({
     CurrentKeybind = "Home",
     HoldToInteract = false,
     Callback = function()
+        if not canGoHome then return end
         local root, hitbox = getRoot(getChar(plr))
         local pos = spawnPart.Position + Vector3.new(0,4,0)
         root.Position = pos
         hitbox.Position = pos
     end
 })
+keyTab:CreateKeybind({
+    Name = "Toggle Collect Aura",
+    CurrentKeybind = "Insert",
+    HoldToInteract = false,
+    Callback = function()
+        if not canToggleAura then return end
+        if aura then
+            ga:Set(false)  
+            notif("Collect Aura Off.")
+        else
+            ga:Set(true)
+            notif("Collect Aura On.")
+        end
+    end
+})
 
+keyTab:CreateSection("Enable Keybinds")
+keyTab:CreateToggle({
+    Name = "Collect All Gifts Keybind",
+    CurrentValue = true,
+    Callback = function(Value)
+        canEzCollectAll = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Disable All Enemies Keybind",
+    CurrentValue = true,
+    Callback = function(Value)
+        canEzDisableAll = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Instant Grapple Keybind",
+    CurrentValue = false,
+    Callback = function(Value)
+        canInstaGrapple = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Teleport to Spawn Keybind",
+    CurrentValue = true,
+    Callback = function(Value)
+        canGoHome = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Toggle Collect Aura Keybind",
+    CurrentValue = true,
+    Callback = function(Value)
+        canToggleAura = Value
+    end
+})
 
+--------------------------
 debugTab:CreateButton({
     Name = "Destroy GUI/Panic",
     Callback = function()
@@ -685,6 +874,15 @@ table.insert(connections, crcr)
 local loopClosest
 local loopDiff = math.huge
 local giftSelection = availableNormalGifts
+
+local function getNewClosest()
+    local newClose, newDiff = getClosestGift(giftSelection)
+    if newClose and newDiff < loopDiff then
+        loopClosest = newClose
+        loopDiff = newDiff
+    end
+end
+
 local runLoop = RunService.Heartbeat:Connect(function(d)
     if aura then
         if #availableNormalGifts == 0 then
@@ -693,28 +891,21 @@ local runLoop = RunService.Heartbeat:Connect(function(d)
         if #availableGoldenGifts == 0 then
             giftSelection = availableNormalGifts
         end
-
+        
+        getNewClosest()
         if loopClosest then
-            if loopClosest.Transparency == 1 then
-                local newClose, newDiff = getClosestGift(giftSelection)
-                if newClose and newDiff then loopClosest = newClose; loopDiff = newDiff end
-            end
-            local newClose, newDiff = getClosestGift(giftSelection)
-            if newClose and newDiff < loopDiff then
-                loopClosest = newClose
-                loopDiff = newDiff
-            end
+            task.wait()
             collectGift:FireServer(loopClosest)
-        else
-            local newClose, newDiff = getClosestGift(giftSelection)
-            if newClose and newDiff < loopDiff then
-                loopClosest = newClose
-                loopDiff = newDiff
-            end
+            getNewClosest()
         end
     end
 
-
+    if visibleHitbox then
+        local root, hitbox = getRoot(getChar(plr))
+        if root and hitbox then
+            hitbox.Transparency = 0
+        end
+    end
 
     task.wait()
 end)
@@ -737,6 +928,8 @@ function destroyGui()
         c:Disconnect()
         print(c, "disconnected")
     end
+    vh:Set(false)
+    print("visible hitbox off")
     print("destroying rayfield")
     task.wait(.5)
     Rayfield:Destroy()
