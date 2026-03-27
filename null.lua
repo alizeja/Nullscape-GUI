@@ -3,9 +3,9 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local plr = Players.LocalPlayer
-local plrgui = plr.PlayerGui
 
 local events = ReplicatedStorage.Events
 
@@ -23,6 +23,8 @@ local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 
 local tweening = false
+local aura = false
+local giftConnections = {}
 local connections = {}
 
 local dangerlevels = {
@@ -110,7 +112,7 @@ local function getAvailableGifts()
         if gift.Transparency ~= 1 then
             table.insert(giftTable, gift)
         end
-        gift:GetPropertyChangedSignal("Transparency"):Connect(function()
+        local gtc = gift:GetPropertyChangedSignal("Transparency"):Connect(function()
             if gift.Transparency == 1 then
                 for i, g in ipairs(giftTable) do
                     if g == gift then
@@ -122,6 +124,7 @@ local function getAvailableGifts()
                 table.insert(giftTable, gift)
             end
         end)
+        table.insert(giftConnections, gtc)
     end
 
     for _, gift in ipairs(gifts:GetChildren()) do
@@ -202,7 +205,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     return false
 end
 
-local function getClosestGift(gifts, activeTripmines, activeEnemies)
+local function getClosestGift(gifts)
     local char = getChar(plr)
     local root = getRoot(char)
     if not root then return end
@@ -222,7 +225,7 @@ local function getClosestGift(gifts, activeTripmines, activeEnemies)
         end
     end
 
-    return closest
+    return closest, shortest
 end
 
 local function goTo(part, activeTripmines, activeEnemies)
@@ -322,11 +325,10 @@ local function disableEnemy(enemyName, touchPart)
         Basic = function()
             local n = 0
             for _, sameenemy in enemies:GetChildren() do
-                if sameenemy.Name  ~= enemyName or sameenemy:HasTag(".Disabled") then continue end
+                if sameenemy.Name  ~= enemyName then continue end
                 local touch = sameenemy:FindFirstChild("TouchInterest", true)
                 if touch then
                     touch:Destroy()
-                    sameenemy:AddTag(".Disabled")
                     n += 1
                 else
                     continue
@@ -456,6 +458,13 @@ mainTab:CreateButton({
     Name = "Collect Golden Gifts",
     Callback = function()
         collect("golden")
+    end
+})
+mainTab:CreateToggle({
+    Name = "Collect Aura",
+    CurrentValue = false,
+    Callback = function(Value)
+        aura = Value
     end
 })
 
@@ -672,9 +681,58 @@ table.insert(connections, crca)
 local crcr = currentRooms.ChildRemoved:Connect(updateAltarSelection)
 table.insert(connections, crcr)
 
+----loops!
+local loopClosest
+local loopDiff = math.huge
+local giftSelection = availableNormalGifts
+local runLoop = RunService.Heartbeat:Connect(function(d)
+    if aura then
+        if #availableNormalGifts == 0 then
+            giftSelection = availableGoldenGifts
+        end
+        if #availableGoldenGifts == 0 then
+            giftSelection = availableNormalGifts
+        end
+
+        if loopClosest then
+            if loopClosest.Transparency == 1 then
+                local newClose, newDiff = getClosestGift(giftSelection)
+                if newClose and newDiff then loopClosest = newClose; loopDiff = newDiff end
+            end
+            local newClose, newDiff = getClosestGift(giftSelection)
+            if newClose and newDiff < loopDiff then
+                loopClosest = newClose
+                loopDiff = newDiff
+            end
+            collectGift:FireServer(loopClosest)
+        else
+            local newClose, newDiff = getClosestGift(giftSelection)
+            if newClose and newDiff < loopDiff then
+                loopClosest = newClose
+                loopDiff = newDiff
+            end
+        end
+    end
+
+
+
+    task.wait()
+end)
+
 ---- destroy
 function destroyGui()
     notif("Destroying...", "Nullscape GUI:")
+    runLoop:Disconnect()
+    print("runLoop disconnected")
+    task.spawn(function()
+        local n = 0
+        for _, c in giftConnections do
+            c:Disconnect()
+            n += 1
+            print(n)
+        end
+        print(n.." gift connections disconnected! (background)")
+    end)
     for _, c in connections do
         c:Disconnect()
         print(c, "disconnected")
