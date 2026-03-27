@@ -648,7 +648,7 @@ keyTab:CreateKeybind({
     HoldToInteract = false,
     Callback = function()
         local root, hitbox = getRoot(getChar(plr))
-        pos = spawnPart.Position + Vector3.new(0,4,0)
+        local pos = spawnPart.Position + Vector3.new(0,4,0)
         root.Position = pos
         hitbox.Position = pos
     end
@@ -663,7 +663,7 @@ debugTab:CreateButton({
 })
 
 ---------connections!
-
+    
 local eca = enemies.ChildAdded:Connect(updateEnemySelection)
 table.insert(connections, eca)
 local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
