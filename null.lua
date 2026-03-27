@@ -103,25 +103,25 @@ local function getRoot(char, humanoid)
     return char:FindFirstChild("HumanoidRootPart") or (humanoid and humanoid.RootPart), char:FindFirstChild("Hitbox")
 end
 
+local availableNormalGifts = {}
+local availableGoldenGifts = {}
 local function getAvailableGifts()
-    local availableNormalGifts = {}
-    local availableGoldenGifts = {}
-
     local function trackGift(gift, giftTable)
         if gift.Transparency ~= 1 then
             table.insert(giftTable, gift)
-
-            gift:GetPropertyChangedSignal("Transparency"):Connect(function()
-                if gift.Transparency == 1 then
-                    for i, g in ipairs(giftTable) do
-                        if g == gift then
-                            table.remove(giftTable, i)
-                            break
-                        end
+        end
+        gift:GetPropertyChangedSignal("Transparency"):Connect(function()
+            if gift.Transparency == 1 then
+                for i, g in ipairs(giftTable) do
+                    if g == gift then
+                        table.remove(giftTable, i)
+                        break
                     end
                 end
-            end)
-        end
+            elseif gift.Transparency == 0 then
+                table.insert(giftTable, gift)
+            end
+        end)
     end
 
     for _, gift in ipairs(gifts:GetChildren()) do
@@ -131,9 +131,8 @@ local function getAvailableGifts()
     for _, gift in ipairs(goldengifts:GetChildren()) do
         trackGift(gift, availableGoldenGifts)
     end
-
-    return availableNormalGifts, availableGoldenGifts
 end
+getAvailableGifts()
 
 local function getActiveTripmines()
     local active = {}
@@ -395,12 +394,11 @@ local function collect(which)
         if tweening then notif("Already collecting.") return end
         tweening = true
 
-        local _, goldenGifts = getAvailableGifts()
         while true do
             local root = getRoot(getChar(plr))
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
-            local gift = getClosestGift(goldenGifts, activeTripmines, activeEnemies)
+            local gift = getClosestGift(availableGoldenGifts, activeTripmines, activeEnemies)
             if not gift then break end
 
             local tween = goTo(gift, activeTripmines, activeEnemies)
@@ -415,12 +413,11 @@ local function collect(which)
     local function collectNormal(getGoldenAfter)
         if tweening then notif("Already collecting.") return end
         tweening = true
-        local activeGifts,_ = getAvailableGifts()
         while true do
             local root = getRoot(getChar(plr))
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
-            local gift = getClosestGift(activeGifts, activeTripmines, activeEnemies)
+            local gift = getClosestGift(availableNormalGifts, activeTripmines, activeEnemies)
             if not gift then break end
 
             local tween = goTo(gift, activeTripmines, activeEnemies)
@@ -535,10 +532,12 @@ local selectAltars = mainTab:CreateDropdown({
 })
 
 local function updateAltarSelection()
+    local n = 1
     local options = {}
     for _, p in ipairs(getAltarPrompts()) do
-        local text = p.Text
+        local text = n..". "..p.Text
         altarVal[text] = p.Prompt
+        n += 1
         table.insert(options, text)
     end
 
@@ -663,7 +662,7 @@ debugTab:CreateButton({
 })
 
 ---------connections!
-    
+
 local eca = enemies.ChildAdded:Connect(updateEnemySelection)
 table.insert(connections, eca)
 local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
