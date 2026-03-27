@@ -14,13 +14,10 @@ local items = workspace.ItemPools
 local gifts = items.NormalGifts
 local goldengifts = items.GoldenGifts
 local tripmines = items.Tripmines
-local skullp = items.SkullProjectile
-local vskullp = items.Skull2Projectile
 local fleshp = items.FleshProjectile
 local enemies = workspace.Enemies
 local giftEsp = workspace.Showlocation
 local tripEsp = workspace.ShowlocationTrip
-local giftsLabel = plrgui.GUI.Gifts
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
@@ -114,7 +111,7 @@ local function getAvailableGifts()
         if gift.Transparency ~= 1 then
             table.insert(giftTable, gift)
 
-            local gac = gift:GetPropertyChangedSignal("Transparency"):Connect(function()
+            gift:GetPropertyChangedSignal("Transparency"):Connect(function()
                 if gift.Transparency == 1 then
                     for i, g in ipairs(giftTable) do
                         if g == gift then
@@ -124,7 +121,6 @@ local function getAvailableGifts()
                     end
                 end
             end)
-            table.insert(connections, gac)
         end
     end
 
@@ -340,7 +336,7 @@ local function disableEnemy(enemyName, touchPart)
             if n > 0 then
                 notif(tostring(n).." "..enemyName.."(s) disabled.")
             else
-                notif(enemyName.." cannot be disabled.")
+                notif(enemyName.." cannot be disabled, or already disabled.")
             end
         end,
         Skinwalker = function()
@@ -367,10 +363,18 @@ local function disableEnemy(enemyName, touchPart)
             disableFunction.Basic()
         end,
         Springer = function()
-            local shockwave = enemy:FindFirstChild("SpringerShockwave")
-            if shockwave then
-                shockwave:Destroy()
-                notif("Springer shockwave disabled. Smashing cannot be disabled.")
+            local n = 0
+            for _, sameenemy in enemies:GetChildren() do
+                local shockwave = sameenemy:FindFirstChild("SpringerShockwave")
+                if shockwave then
+                    shockwave:Destroy()
+                    n += 1
+                end
+            end
+            if n > 0 then
+                notif(tostring(n).." Springer(s) shockwaves disabled. Cannot disable smashing.")
+            else
+                notif("No Springers left to be disabled.")
             end
         end
     }
