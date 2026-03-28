@@ -36,6 +36,7 @@ local canEzCollectAll = true
 local canGoHome = true
 local canEzDisableAll = true
 local av = false
+local noice = false
 local giftConnections = {}
 local connections = {}
 
@@ -343,6 +344,7 @@ local function findBestSelection()
 
         if intermission == "ENEMIES" then
             local val = dangerlevels[name]
+            print(val)
             print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
@@ -351,6 +353,7 @@ local function findBestSelection()
             end
         elseif intermission == "CURSES" then
             local val = balancelevels[name]
+            print(val)
             print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
@@ -359,6 +362,7 @@ local function findBestSelection()
             end
         elseif intermission == "GREATER CURSES" then
             local val = greaterBalanceLevels[name]
+            print(val)
             print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
@@ -843,15 +847,11 @@ mapTab:CreateButton({
 })
 
 mapTab:CreateSection("Tiles")
-mapTab:CreateButton({
+mapTab:CreateToggle({
     Name = "No Ice Tiles",
-    Callback = function()
-        if #currentRooms:GetChildren() == 0 then return end
-        for _, part in currentRooms:GetDescendants() do
-            if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
-                part.Material = Enum.Material.Air
-            end
-        end
+    CurrentValue = noice,
+    Callback = function(Value)
+        noice = Value
     end
 })
 
@@ -1143,6 +1143,16 @@ local runLoop = RunService.Heartbeat:Connect(function()
         local root, hitbox = getRoot(getChar(plr))
         if root and hitbox then
             hitbox.Transparency = 0
+        end
+    end
+
+    if noice then
+        if #currentRooms:GetChildren() ~= 0 then
+            for _, part in currentRooms:GetDescendants() do
+                if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
+                    part.Material = Enum.Material.Air
+                end
+            end
         end
     end
 
