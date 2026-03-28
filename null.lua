@@ -847,7 +847,7 @@ mapTab:CreateButton({
 })
 
 mapTab:CreateSection("Tiles")
-mapTab:CreateToggle({
+local ni = mapTab:CreateToggle({
     Name = "No Ice Tiles",
     CurrentValue = noice,
     Callback = function(Value)
@@ -1242,6 +1242,8 @@ function destroyGui()
     print("anti void off")
     er:Set(false)
     print("reset off")
+    ni:Set(false)
+    print("no ice off")
     print("destroying rayfield...")
     task.wait(.2)
     Rayfield:Destroy()
