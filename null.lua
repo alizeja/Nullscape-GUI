@@ -831,7 +831,6 @@ local function activateAltar()
     until (root.Position - pPart.Position).Magnitude < 6
 
     fireproximityprompt(selectedPrompt)
-    selectedPrompt:InputHoldBegin()
 
     task.wait(selectedPrompt.HoldDuration)
 
