@@ -824,10 +824,11 @@ local function activateAltar()
 
     local prev = root.CFrame
     local pos = pPart.CFrame + pPart.CFrame.LookVector * -3
+    Camera.CFrame = pos
     root.CFrame = pos
     hitbox.CFrame = pos
 
-    repeat task.wait()
+    repeat task.wait(.05)
     until (root.Position - pPart.Position).Magnitude < 6
 
     fireproximityprompt(selectedPrompt)
