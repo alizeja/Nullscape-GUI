@@ -56,8 +56,8 @@ local dangerlevels = {
 }
 local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
     ["Further Skinwalker"] = 0.6,
-    Idiotware = 0.9,
-    ["Lower Gravity"] = 1.0,
+    Idiotware = .9,
+    ["Lower Gravity"] = 1,
     ["Stairs... Stairs..."] = 1.2,
     ["Savory Ring"] = 1.3,
     ["Random Spawn"] = 1.5,
@@ -72,7 +72,7 @@ local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR 
     ["Mart Infection"] = 2.7,
     ["Bigger Blast"] = 2.8,
     Shotgun = 2.9,
-    ["Closer Skinwalker"] = 3.0,
+    ["Closer Skinwalker"] = 3,
     ["Taller Skinwalker"] = 3.1,
     ["Bloodier Meat"] = 3.2,
     ["Beacon Mirage"] = 3.3,
@@ -82,12 +82,12 @@ local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR 
     ["Mighty Chivalry"] = 3.7,
     ["Random Skinwalker"] = 3.8,
     ["More Tripmines"] = 3.9,
-    ["Bigger Tripmines"] = 4.0,
+    ["Bigger Tripmines"] = 4,
     Springloaded = 4.2,
     ["Problem Child"] = 4.3,
     Delusion = 4.6,
     Pacifier = 4.8,
-    ["Fake Count"] = 5.0,
+    ["Fake Count"] = 5,
     Crayonify = 5.1,
     Camouflage = 5.2,
     ["More Ringing"] = 5.4,
@@ -95,9 +95,24 @@ local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR 
     ["Mart Slide"] = 5.8,
     ["[CONTENT REMOVED]"] = 6.2,
     ["[REDACTED]"]= 6.4,
-    Tripnuke = 7.0,
+    Tripnuke = 7,
     ["LAP 2"] = 7.2,
     ["Nothing?"] = 7.5
+}
+local greaterBalanceLevels = {
+    ["Trap Card"] = 1.6,
+    ["Void Implosions"] = 2.2,
+    ["Run"] = 2.4,
+    ["Hollow Tiles"] = 2.8,
+    ["Doombringer"] = 3,
+    ["One Less Choice"] = 3.1,
+    ["Blade Bombardment"] = 3.6,
+    ["Ballet of Blades"] = 3.8,
+    ["Rebirth"] = 4,
+    ["Muted"] = 4.2,
+    ["Sorrow"] = 4.4,
+    ["Tantrum"] = 5,
+    ["Inverse Destruction"] = 5.3
 }
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -304,34 +319,49 @@ local function goTo(part, activeTripmines, activeEnemies)
 end
 
 local function findBestSelection()
-    selection = workspace:FindFirstChild("Select")
+    local selection = workspace:FindFirstChild("Select")
     if not selection then return end
+
     local intermission = selection.Sign.Billboard.TextLabel.Text
 
     local bestchoice
-    local danger = 10
-    local worst = 0
+    local danger = math.huge
 
-    for i, choice in selection:getChildren() do
+    for _, choice in selection:GetChildren() do
         if choice.Name == "Reroll" or choice.Name == "Sign" then continue end
-        local name = choice.ProximityPrompt.ActionText
+
+        local prompt = choice:FindFirstChildOfClass("ProximityPrompt")
+        if not prompt then continue end
+
+        local name = prompt.ActionText
+        if not name then continue end
 
         if intermission == "ENEMIES" then
-            if not dangerlevels[name] then continue end
-            if dangerlevels[name] < danger then
+            local val = dangerlevels[name]
+            if val and val < danger then
                 bestchoice = choice
-                danger = dangerlevels[name]
+                danger = val
             end
+
         elseif intermission == "CURSES" then
-            if not balancelevels[name] then continue end
-            if balancelevels[name] < danger then
+            local val = balancelevels[name]
+            if val and val < danger then
                 bestchoice = choice
-                danger = balancelevels[name]
+                danger = val
+            end
+
+        elseif intermission == "GREATER CURSES" then
+            local val = greaterBalanceLevels[name]
+            if val and val < danger then
+                bestchoice = choice
+                danger = val
             end
         end
     end
 
-    return bestchoice.ProximityPrompt.ActionText
+    if bestchoice then
+        return bestchoice.ProximityPrompt.ActionText
+    end
 end
 
 local function getAltarPrompts()
