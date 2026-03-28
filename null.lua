@@ -1174,9 +1174,13 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
     local root, hitbox = getRoot(getChar(plr))
-    if root and hitbox then hitbox.Position = root.Position end --teleporting hitbox and root together sometimes doesnt work
-
     local h = getHuman(getChar(plr))
+    if root and hitbox then
+        hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
+        if root.Position.Y <= -610.5 and h.Health > 0 then
+            getChar(plr):BreakJoints()
+        end
+    end
 
     if h then
         if not h:HasTag("loop") then
