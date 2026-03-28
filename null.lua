@@ -213,7 +213,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     if not root then return true end
 
     local rootPos = root.Position
-    local fakeSize = Vector3.new(1,3,1)
+    local fakeSize = Vector3.new(2,5,2)
     
     local minX = math.min(rootPos.X - fakeSize.X/2, targetPos.X - fakeSize.X/2)
     local minY = math.min(rootPos.Y - fakeSize.Y/2, targetPos.Y - fakeSize.Y/2)
