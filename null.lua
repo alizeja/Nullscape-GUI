@@ -827,8 +827,9 @@ local function activateAltar()
     until (root.Position - pPart.Position).Magnitude < 6
 
     fireproximityprompt(selectedPrompt)
+    selectedPrompt:InputHoldBegin()
 
-    task.wait(0.1)
+    task.wait(selectedPrompt.HoldDuration)
 
     root.CFrame = prev
     hitbox.CFrame = prev
@@ -846,7 +847,7 @@ mapTab:CreateButton({
     Name = "No Ice Tiles",
     Callback = function()
         if #currentRooms:GetChildren() == 0 then return end
-        for _, part in currentRooms:GetChildren() do
+        for _, part in currentRooms:GetDescendants() do
             if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
                 part.Material = Enum.Material.Air
             end
