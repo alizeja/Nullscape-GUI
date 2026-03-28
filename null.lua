@@ -480,7 +480,7 @@ local function disableEnemy(enemyName, willDestroy)
                 notif("No Springers left to be disabled.")
             end
         end,
-        Kookoo = function(name, willDestroy)
+        KooKoo = function(name, willDestroy)
            destroyEnemy(name)
         end,
         Dozer = function(name, willDestroy)
