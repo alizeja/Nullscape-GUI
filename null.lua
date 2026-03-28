@@ -343,7 +343,7 @@ local function findBestSelection()
 
         if intermission == "ENEMIES" then
             local val = dangerlevels[name]
-            print("is "..val.." less than "..danger.."?")
+            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
                 bestchoice = choice
@@ -351,7 +351,7 @@ local function findBestSelection()
             end
         elseif intermission == "CURSES" then
             local val = balancelevels[name]
-            print("is "..val.." less than "..danger.."?")
+            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
                 bestchoice = choice
@@ -359,7 +359,7 @@ local function findBestSelection()
             end
         elseif intermission == "GREATER CURSES" then
             local val = greaterBalanceLevels[name]
-            print("is "..val.." less than "..danger.."?")
+            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
                 print("yes")
                 bestchoice = choice
