@@ -710,6 +710,12 @@ local vh = visualTab:CreateToggle({
     CurrentValue = false,
     Callback = function(Value)
         visibleHitbox = Value
+        if not Value then
+            local root, hitbox = getRoot(getChar(plr))
+            if root and hitbox then
+                hitbox.Transparency = 1
+            end
+        end
     end
 })
 visualTab:CreateButton({
