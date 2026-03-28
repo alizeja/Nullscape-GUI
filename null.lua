@@ -400,34 +400,27 @@ end
 local function GetClosestPad()
     local localChar = getChar(plr)
     if not localChar then return nil end
-    print("got char")
 
     local root,hitbox = getRoot(localChar)
     if not root then return nil end
-    print("got root")
 
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.FilterDescendantsInstances = {localChar}
-    print("set raycast params")
 
     local badColor = Color3.fromRGB(152, 24, 24)
     local closest = nil
-    local dist = 0
-    print(badColor, closest, dist)
+    local dist = 100
 
-    print("getting pads")
     for _, part in pads:GetChildren() do
         if part.Color == badColor then print("bad color") continue end
         local mag = (root.Position - part.Position).Magnitude
-        if mag > dist then print (mag, ">", dist) continue end
+        if mag > dist then print(mag, ">", dist, "part too far") continue end
 
-        print("setting up raycast")
         local origin = root.Position
         local direction = part.Position - origin
 
         local result = workspace:Raycast(origin, direction, rayParams)
-        print("running raycast")
         local visible = false
 
         if result then
@@ -874,7 +867,7 @@ table.insert(connections, crcr)
 local loopClosest
 local giftSelection = {}
 
-RunService.Heartbeat:Connect(function()
+local runLoop = RunService.Heartbeat:Connect(function()
     if aura then
         if #availableNormalGifts == 0 then
             giftSelection = availableGoldenGifts
