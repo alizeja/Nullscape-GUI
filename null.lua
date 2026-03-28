@@ -356,6 +356,8 @@ local function findBestSelection()
                 bestchoice = choice
                 danger = val
             end
+        elseif intermission == "UPGRADES" then
+            return "It is your choice."
         end
     end
 
