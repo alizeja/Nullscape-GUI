@@ -349,7 +349,6 @@ local function findBestSelection()
                 bestchoice = choice
                 danger = val
             end
-
         elseif intermission == "GREATER CURSES" then
             local val = greaterBalanceLevels[name]
             if val and val < danger then
