@@ -872,31 +872,21 @@ table.insert(connections, crcr)
 
 ----loops!
 local loopClosest
-local loopDiff = math.huge
-local giftSelection = availableNormalGifts
+local giftSelection = {}
 
-local function getNewClosest()
-    local newClose, newDiff = getClosestGift(giftSelection)
-    if newClose and newDiff < loopDiff then
-        loopClosest = newClose
-        loopDiff = newDiff
-    end
-end
-
-local runLoop = RunService.Heartbeat:Connect(function(d)
+RunService.Heartbeat:Connect(function()
     if aura then
         if #availableNormalGifts == 0 then
             giftSelection = availableGoldenGifts
-        end
-        if #availableGoldenGifts == 0 then
+        elseif #availableGoldenGifts == 0 then
             giftSelection = availableNormalGifts
         end
-        
-        getNewClosest()
-        if loopClosest then
-            task.wait()
+
+        local newClose = getClosestGift(giftSelection)
+
+        if newClose then
+            loopClosest = newClose
             collectGift:FireServer(loopClosest)
-            getNewClosest()
         end
     end
 
@@ -906,8 +896,6 @@ local runLoop = RunService.Heartbeat:Connect(function(d)
             hitbox.Transparency = 0
         end
     end
-
-    task.wait()
 end)
 
 ---- destroy
