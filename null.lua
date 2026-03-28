@@ -624,7 +624,7 @@ local function updateAltarSelection()
         table.insert(options, text)
         n += 1
     end
-
+    selectAltars:Set("")
     selectAltars:Refresh(options)
 end
 
@@ -895,23 +895,25 @@ end)
 function destroyGui()
     notif("Destroying...", "Nullscape GUI:")
     runLoop:Disconnect()
-    print("runLoop disconnected")
+    print("run loop disconnected")
     task.spawn(function()
-        local n = 0
-        for _, c in giftConnections do
-            c:Disconnect()
-            n += 1
-            print(n)
+        local n = #giftConnections
+        for i = 1, n do
+            giftConnections[i]:Disconnect()
+            giftConnections[i] = nil
+            if i % 500 == 0 then
+                print(i.." gift connections disconnected...")
+            end
         end
+
         print(n.." gift connections disconnected! (background)")
     end)
     for _, c in connections do
         c:Disconnect()
-        print(c, "disconnected")
     end
     vh:Set(false)
     print("visible hitbox off")
-    print("destroying rayfield")
-    task.wait(.5)
+    print("destroying rayfield...")
+    task.wait(.2)
     Rayfield:Destroy()
 end
