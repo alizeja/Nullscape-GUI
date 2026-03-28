@@ -337,7 +337,12 @@ local function disableEnemy(enemyName)
             local part = sameenemy:FindFirstChild(remove, true)
             if part then
                 part:Destroy()
+                sameenemy:AddTag(".Disabled")
                 n += 1
+            else
+                if not sameenemy:HasTag(".Disabled") then
+                    sameenemy:AddTag(".Disabled")
+                end
             end
         end
 
