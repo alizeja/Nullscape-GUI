@@ -4,6 +4,8 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local plr = Players.LocalPlayer
@@ -33,6 +35,7 @@ local canToggleAura = true
 local canEzCollectAll = true
 local canGoHome = true
 local canEzDisableAll = true
+local av = false
 local giftConnections = {}
 local connections = {}
 
@@ -102,16 +105,16 @@ local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR 
 local greaterBalanceLevels = {
     ["Trap Card"] = 1.6,
     ["Void Implosions"] = 2.2,
-    ["Run"] = 2.4,
+    Run = 2.4,
     ["Hollow Tiles"] = 2.8,
-    ["Doombringer"] = 3,
+    Doombringer = 3,
     ["One Less Choice"] = 3.1,
     ["Blade Bombardment"] = 3.6,
     ["Ballet of Blades"] = 3.8,
-    ["Rebirth"] = 4,
-    ["Muted"] = 4.2,
-    ["Sorrow"] = 4.4,
-    ["Tantrum"] = 5,
+    Rebirth = 4,
+    Muted = 4.2,
+    Sorrow = 4.4,
+    Tantrum = 5,
     ["Inverse Destruction"] = 5.3
 }
 
@@ -134,6 +137,8 @@ local function notif(text: string, title: string, dur: number)
 end
 
 local mainTab = Window:CreateTab("Main")
+local mapTab = Window:CreateTab("Map")
+local plrTab = Window:CreateTab("Player")
 local visualTab = Window:CreateTab("Visual")
 local keyTab = Window:CreateTab("Keybinds")
 local debugTab = Window:CreateTab("Debug")
@@ -338,20 +343,25 @@ local function findBestSelection()
 
         if intermission == "ENEMIES" then
             local val = dangerlevels[name]
+            print("is "..val.." less than "..danger.."?")
             if val and val < danger then
+                print("yes")
                 bestchoice = choice
                 danger = val
             end
-
         elseif intermission == "CURSES" then
             local val = balancelevels[name]
+            print("is "..val.." less than "..danger.."?")
             if val and val < danger then
+                print("yes")
                 bestchoice = choice
                 danger = val
             end
         elseif intermission == "GREATER CURSES" then
             local val = greaterBalanceLevels[name]
+            print("is "..val.." less than "..danger.."?")
             if val and val < danger then
+                print("yes")
                 bestchoice = choice
                 danger = val
             end
@@ -379,7 +389,7 @@ local function getAltarPrompts()
     return prompts
 end
 
-local function disableEnemy(enemyName)
+local function disableEnemy(enemyName, willDestroy)
     local function loopEnemies(name, remove, list)
         list = list or enemies
         local n = 0
@@ -401,9 +411,24 @@ local function disableEnemy(enemyName)
 
         return n
     end
+    local function destroyEnemy(name, list)
+        list = list or enemies
+
+        for _,sameenemy in list:GetChildren() do
+            if sameenemy.Name == name then
+                sameenemy:Destroy()
+            end
+        end
+
+        notif(name.." disabled. (destroyed)")
+    end
 
     local disableFunction = {
-        Basic = function(name)
+        Basic = function(name, willDestroy)
+            if willDestroy then
+                destroyEnemy(name)
+                return
+            end
             local n = loopEnemies(name, "TouchInterest")
 
             if n > 0 then
@@ -412,11 +437,14 @@ local function disableEnemy(enemyName)
                 notif(name.." cannot be disabled, or already disabled.")
             end
         end,
-
-        Skinwalker = function()
+        Skinwalker = function(name, willDestroy)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
                 notif("Skinwalker isn't following you yet.")
+                return
+            end
+            if willDestroy then
+                destroyEnemy(name, skinwalkers)
                 return
             end
 
@@ -428,16 +456,22 @@ local function disableEnemy(enemyName)
                 notif("Skinwalkers already disabled.")
             end
         end,
-
-        Flesh = function()
+        Flesh = function(name, willDestroy)
             for _, b in fleshp:GetChildren() do
                 b:Destroy()
+            end
+            if willDestroy then
+                destroyEnemy(name)
+                return
             end
 
             disableFunction.Basic("Flesh", "TouchInterest")
         end,
-
-        Springer = function()
+        Springer = function(name, willDestroy)
+            if willDestroy then
+                destroyEnemy(name)
+                return
+            end
             local n = loopEnemies("Springer", "SpringerShockwave")
 
             if n > 0 then
@@ -445,13 +479,22 @@ local function disableEnemy(enemyName)
             else
                 notif("No Springers left to be disabled.")
             end
-        end
+        end,
+        Kookoo = function(name, willDestroy)
+           destroyEnemy(name)
+        end,
+        Dozer = function(name, willDestroy)
+           destroyEnemy(name)
+        end,
+        Voidbreaker = function(name, willDestroy)
+           destroyEnemy(name)
+        end,
     }
 
     if disableFunction[enemyName] then
-        disableFunction[enemyName](enemyName)
+        disableFunction[enemyName](enemyName, willDestroy)
     else
-        disableFunction.Basic(enemyName)
+        disableFunction.Basic(enemyName, willDestroy)
     end
 end
 
@@ -575,7 +618,7 @@ mainTab:CreateButton({
 })
 local ga = mainTab:CreateToggle({
     Name = "Collect Aura",
-    CurrentValue = false,
+    CurrentValue = aura,
     Callback = function(Value)
         aura = Value
     end
@@ -617,18 +660,18 @@ local function updateEnemySelection()
 end
 updateEnemySelection()
 
-local function disableSelected()
+local function disableSelected(willDestroy: boolean)
     if selectedEnemies then
         for _, enemy in selectedEnemies do
             task.spawn(function()
-                disableEnemy(enemy)
+                disableEnemy(enemy, willDestroy)
             end)
         end
     else
         notif("No Enemy Selected")
     end
 end
-local function disableAll()
+local function disableAll(willDestroy: boolean)
     local allenemies = updateEnemySelection()
     if not allenemies or #allenemies == 0 then
         notif("No enemies available.")
@@ -636,7 +679,7 @@ local function disableAll()
     end
 
     for _, enemy in allenemies do
-        disableEnemy(enemy)
+        disableEnemy(enemy, willDestroy)
     end
 end
 
@@ -652,14 +695,83 @@ mainTab:CreateButton({
         disableAll()
     end
 })
+mainTab:CreateButton({
+    Name = "Destroy Selected Enemies",
+    Callback = function()
+        disableSelected(true)
+    end
+})
+mainTab:CreateButton({
+    Name = "Destroy All",
+    Callback = function()
+        disableAll(true)
+    end
+})
 
-mainTab:CreateSection("Altars")
+mainTab:CreateSection("Intermission")
+
+mainTab:CreateButton({
+    Name = "Find Best Choice (BIAS)",
+    Callback = function()
+        notif(tostring(findBestSelection()), "Best Choice:")
+    end
+})
+--------------map
+
+mapTab:CreateSection("Void")
+local antiVoidSelection = 1
+
+local avt = mapTab:CreateToggle({
+    Name = "Anti Void",
+    CurrentValue = av,
+    Callback = function(Value)
+        av = Value
+    end
+})
+local avs = mapTab:CreateDropdown({
+    Name = "Anti Void Setting",
+    Options = {
+        "1. Teleport to Spawn",
+        "2. Launch Up",
+        "3. Closest Gift"
+    },
+    CurrentOption = {"1. Teleport to Spawn"},
+    MultipleOptions = false,
+    Callback = function(Options)
+        antiVoidSelection = tonumber(string.split(Options[1], ".")[1])
+    end
+})
+local lp = 500
+mapTab:CreateSlider({
+    Name = "Launch Power",
+    Range = {10, 1000},
+    Increment = 10,
+    Suffix = "Power",
+    CurrentValue = lp,
+    Callback = function(Value)
+        lp = Value
+    end
+})
+
+local vv = mapTab:CreateToggle({
+    Name = "Visible Void",
+    CurrentValue = false,
+    Callback = function(Value)
+        if not Value then
+            workspace.KillVoid.Transparency = 1
+        else
+            workspace.KillVoid.Transparency = 0
+        end
+    end
+})
+
+mapTab:CreateSection("Altars")
 local altarVal = {}
 local selectedAltar
 local selectedPrompt
 local activating = false
 
-local selectAltars = mainTab:CreateDropdown({
+local selectAltars = mapTab:CreateDropdown({
    Name = "Select Altar",
    Options = {},
    CurrentOption = {},
@@ -722,21 +834,113 @@ local function activateAltar()
     hitbox.CFrame = prev
     activating = false
 end
-mainTab:CreateButton({
+mapTab:CreateButton({
     Name = "Activate Selected Altar",
     Callback = function()
         activateAltar()
     end
 })
 
-mainTab:CreateSection("Intermission")
-
-mainTab:CreateButton({
-    Name = "Find Best Choice (BIAS)",
+mapTab:CreateSection("Tiles")
+mapTab:CreateButton({
+    Name = "No Ice Tiles",
     Callback = function()
-        notif(tostring(findBestSelection()), "Best Choice:")
+        if #currentRooms:GetChildren() == 0 then return end
+        for _, part in currentRooms:GetChildren() do
+            if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
+                part.Material = Enum.Material.Air
+            end
+        end
     end
 })
+
+---------------player
+plrTab:CreateSection("Humanoid")
+local ew = false
+local ej = false
+local ws = 16
+local jp = 35
+plrTab:CreateToggle({
+    Name = "Enable WalkSpeed",
+    CurrentValue = ew,
+    Callback = function(Value)
+        ew = Value
+        local h = getHuman(getChar(plr))
+        if h then h.WalkSpeed = ws end
+    end
+})
+plrTab:CreateToggle({
+    Name = "Enable JumpPower",
+    CurrentValue = ej,
+    Callback = function(Value)
+        ej = Value
+        local h = getHuman(getChar(plr))
+        if h then h.JumpPower = jp end
+    end
+})
+plrTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {5, 200},
+    Increment = 1,
+    CurrentValue = ws,
+    Callback = function(Value)
+        ws = Value
+        local h = getHuman(getChar(plr))
+        if h then h.WalkSpeed = ws end
+    end
+})
+plrTab:CreateSlider({
+    Name = "JumpPower",
+    Range = {25, 100},
+    Increment = 1,
+    CurrentValue = jp,
+    Callback = function(Value)
+        jp = Value
+        local h = getHuman(getChar(plr))
+        if h then h.JumpPower = jp end
+    end
+})
+plrTab:CreateSection("Character")
+local infjumpdb = false
+local infJump
+plrTab:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Callback = function(Value)
+        if not Value then
+            if infJump then infJump:Disconnect() table.remove(connections, "inf") end
+            infjumpdb = false
+            return
+        end
+
+	    if infJump then infJump:Disconnect() table.remove(connections, "inf") end
+
+	    infJump = UserInputService.JumpRequest:Connect(function()
+	    	if not infjumpdb then
+                local h = getHuman(getChar(plr))
+	    		infjumpdb = true
+	    		h:ChangeState(Enum.HumanoidStateType.Jumping)
+	    		task.wait(.1)
+	    		infjumpdb = false
+	    	end
+	    end)
+        table.insert(connections, "inf", infJump)
+    end
+})
+local vh = plrTab:CreateToggle({
+    Name = "Visible Hitbox",
+    CurrentValue = visibleHitbox,
+    Callback = function(Value)
+        visibleHitbox = Value
+        if not Value then
+            local root, hitbox = getRoot(getChar(plr))
+            if root and hitbox then
+                hitbox.Transparency = 1
+            end
+        end
+    end
+})
+
 
 ---------------visual
 
@@ -755,26 +959,6 @@ visualTab:CreateButton({
         tripEsp.Enabled = true
         tripEsp.FillTransparency = 0.75
         tripEsp.OutlineTransparency = 0
-    end
-})
-visualTab:CreateDivider()
-local vh = visualTab:CreateToggle({
-    Name = "Visible Hitbox",
-    CurrentValue = false,
-    Callback = function(Value)
-        visibleHitbox = Value
-        if not Value then
-            local root, hitbox = getRoot(getChar(plr))
-            if root and hitbox then
-                hitbox.Transparency = 1
-            end
-        end
-    end
-})
-visualTab:CreateButton({
-    Name = "Visible Void",
-    Callback = function()
-        workspace.KillVoid.Transparency = 0
     end
 })
 
@@ -874,41 +1058,48 @@ keyTab:CreateKeybind({
 keyTab:CreateSection("Enable Keybinds")
 keyTab:CreateToggle({
     Name = "Collect All Gifts Keybind",
-    CurrentValue = true,
+    CurrentValue = canEzCollectAll,
     Callback = function(Value)
         canEzCollectAll = Value
     end
 })
 keyTab:CreateToggle({
     Name = "Disable All Enemies Keybind",
-    CurrentValue = true,
+    CurrentValue = canEzDisableAll,
     Callback = function(Value)
         canEzDisableAll = Value
     end
 })
 keyTab:CreateToggle({
     Name = "Instant Grapple Keybind",
-    CurrentValue = false,
+    CurrentValue = canInstaGrapple,
     Callback = function(Value)
         canInstaGrapple = Value
     end
 })
 keyTab:CreateToggle({
     Name = "Teleport to Spawn Keybind",
-    CurrentValue = true,
+    CurrentValue = canGoHome,
     Callback = function(Value)
         canGoHome = Value
     end
 })
 keyTab:CreateToggle({
     Name = "Toggle Collect Aura Keybind",
-    CurrentValue = true,
+    CurrentValue = canToggleAura,
     Callback = function(Value)
         canToggleAura = Value
     end
 })
 
---------------------------
+-------------------------- debug
+local er = debugTab:CreateToggle({
+    Name = "Enable Reset",
+    CurrentValue = false,
+    Callback = function(Value)
+        StarterGui:SetCore("ResetButtonCallback", Value)
+    end
+})
 debugTab:CreateButton({
     Name = "Destroy GUI/Panic",
     Callback = function()
@@ -953,6 +1144,58 @@ local runLoop = RunService.Heartbeat:Connect(function()
             hitbox.Transparency = 0
         end
     end
+
+    if av then
+        local root:BasePart, hitbox = getRoot(getChar(plr))
+
+        if root and root.Position.Y <= -550 then
+            if antiVoidSelection == 1 then
+                local pos = spawnPart.Position + Vector3.new(0,4,0)
+                root.Position = pos
+            elseif antiVoidSelection == 2 then
+                local alv = root.AssemblyLinearVelocity
+                root.AssemblyLinearVelocity = Vector3.new(alv.X,lp,alv.Z)
+            elseif antiVoidSelection == 3 then
+                local gifts = availableNormalGifts
+                if #gifts == 0 then gifts = availableGoldenGifts end
+                local gift = getClosestGift(gifts)
+
+                if gift then
+                    root.Position = gift.Position
+                else
+                    antiVoidSelection = 1
+                    avs:Set({"1. Teleport to Spawn"})
+                    notif("No gift! Automatically doing Teleport to Spawn", "Anti Void")
+                end
+            end
+
+            hitbox.Position = root.Position
+        end
+    end
+    local root, hitbox = getRoot(getChar(plr))
+    if root and hitbox then hitbox.Position = root.Position end --teleporting hitbox and root together sometimes doesnt work
+
+    local h = getHuman(getChar(plr))
+
+    if h then
+        if not h:HasTag("loop") then
+            h:AddTag("loop")
+            local wsc = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                local cs = h.WalkSpeed
+                if cs == ws or not ew then return end
+
+                h.WalkSpeed = ws
+            end)
+            connections["walkloop"] = wsc
+            local jpc = h:GetPropertyChangedSignal("JumpPower"):Connect(function()
+                local cp = h.JumpPower
+                if cp == jp or not ej then return end
+
+                h.JumpPower = jp
+            end)
+            connections["walkloop"] = jpc
+        end
+    end
 end)
 
 ---- destroy
@@ -972,11 +1215,18 @@ function destroyGui()
 
         print(n.." gift connections disconnected! (background)")
     end)
+    print("disconnecting "..#connections.." connections")
     for _, c in connections do
         c:Disconnect()
     end
     vh:Set(false)
     print("visible hitbox off")
+    vv:Set(false)
+    print("visible void off")
+    avt:Set(false)
+    print("anti void off")
+    er:Set(false)
+    print("reset off")
     print("destroying rayfield...")
     task.wait(.2)
     Rayfield:Destroy()
