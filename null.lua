@@ -59,11 +59,11 @@ local dangerlevels = {
     Cadence = 5
 }
 local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
-    ["Further Skinwalker"] = 0.6,
+    ["Further Skinwalker"] = .6,
+    ["Savory Ring"] = .7,
     Idiotware = .9,
     ["Lower Gravity"] = 1,
     ["Stairs... Stairs..."] = 1.2,
-    ["Savory Ring"] = 1.3,
     Camouflage = 1.4,
     ["Random Spawn"] = 1.5,
     ["Ice Tiles"] = 1.7,
