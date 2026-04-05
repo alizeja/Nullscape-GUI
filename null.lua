@@ -864,7 +864,6 @@ mapTab:CreateSlider({
     Name = "Launch Power",
     Range = {10, 1000},
     Increment = 10,
-    Suffix = "Power",
     CurrentValue = lp,
     Callback = function(Value)
         lp = Value
