@@ -7,6 +7,9 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+PlaceId, JobId = game.PlaceId, game.JobId
 
 local plr = Players.LocalPlayer
 
@@ -26,9 +29,13 @@ local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 local pads = workspace.JumpPads
+local tripmineprots = Instance.new("Folder")
+tripmineprots.Parent = workspace
+tripmineprots.Name = "Tripmine Protection (NULL GUI)"
 
 local tweening = false
 local aura = false
+local cesp = false
 local visibleHitbox = false
 local canInstaGrapple = false
 local canToggleAura = true
@@ -37,7 +44,8 @@ local canGoHome = true
 local canEzDisableAll = true
 local av = false
 local noice = false
-local giftConnections = {}
+local instrumentesp = false
+local pt = false
 local connections = {}
 
 local dangerlevels = {
@@ -119,6 +127,11 @@ local greaterBalanceLevels = {
     ["Inverse Destruction"] = 5.3
 }
 
+local tracers = {}
+local availableNormalGifts = {}
+local availableGoldenGifts = {}
+local cgb
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Nullscape GUI",
@@ -157,37 +170,106 @@ local function getRoot(char, humanoid)
     return char:FindFirstChild("HumanoidRootPart") or (humanoid and humanoid.RootPart), char:FindFirstChild("Hitbox")
 end
 
-local availableNormalGifts = {}
-local availableGoldenGifts = {}
-local function getAvailableGifts()
-    local function trackGift(gift, giftTable)
-        if gift.Transparency ~= 1 then
-            table.insert(giftTable, gift)
-        end
-        local gtc = gift:GetPropertyChangedSignal("Transparency"):Connect(function()
-            if gift.Transparency == 1 then
-                for i, g in ipairs(giftTable) do
-                    if g == gift then
-                        table.remove(giftTable, i)
-                        break
-                    end
-                end
-            elseif gift.Transparency == 0 then
-                table.insert(giftTable, gift)
-            end
-        end)
-        table.insert(giftConnections, gtc)
-    end
-
-    for _, gift in gifts:GetChildren() do
-        trackGift(gift, availableNormalGifts)
-    end
-
-    for _, gift in goldengifts:GetChildren() do
-        trackGift(gift, availableGoldenGifts)
+local function isDead(target: Player? | Model?)
+    if target:IsA("Player") then
+        local char = target.Character
+        local humanoid: Humanoid = char and getHuman(char)
+        return char and (humanoid and (humanoid:GetState() == Enum.HumanoidStateType.Dead or humanoid.Health <= 0))
+            or char == nil
+    elseif target:IsA("Model") then
+        local humanoid = target and getHuman(target)
+        return humanoid and (humanoid:GetState() == Enum.HumanoidStateType.Dead or humanoid.Health <= 0)
+            or target == nil
+    else
+        return target == nil
     end
 end
-getAvailableGifts()
+
+local closestGiftTracer = Drawing.new("Line")
+closestGiftTracer.Visible = false
+closestGiftTracer.Thickness = 3
+closestGiftTracer.Color = Color3.new(1, 1, 0) -- yellow
+closestGiftTracer.Transparency = 1
+
+local function getClosestAnyGift()
+    local char = getChar(plr)
+    local root = getRoot(char)
+    if not root then return end
+
+    local closest = nil
+    local shortest = math.huge
+
+    local function check(list)
+        for _, gift in ipairs(list) do
+            if gift and gift.Parent then
+                local dist = (gift.Position - root.Position).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closest = gift
+                end
+            end
+        end
+    end
+
+    check(availableNormalGifts)
+    check(availableGoldenGifts)
+
+    return closest
+end
+
+local function createTracer(obj)
+    local line = Drawing.new("Line")
+    line.Visible = true
+    line.Thickness = 2
+    line.Color = Color3.new(0, 0, 1)
+    line.Transparency = 1
+
+    tracers[obj] = line
+end
+
+local function removeTracer(obj)
+    if tracers[obj] then
+        tracers[obj]:Destroy()
+        tracers[obj] = nil
+    end
+end
+
+
+local lastRefresh = 0
+local REFRESH_RATE = 0.2
+
+local function refreshGifts(skip)
+    if not skip then
+        if tick() - lastRefresh < REFRESH_RATE then return end
+        lastRefresh = tick()
+    end
+
+    table.clear(availableNormalGifts)
+    table.clear(availableGoldenGifts)
+
+    local char = getChar(plr)
+    local root = getRoot(char)
+    if not root then return end
+
+    local rootPos = root.Position
+    local MAX_DISTANCE = 500
+
+    for _, gift in ipairs(gifts:GetChildren()) do
+        if gift.Transparency ~= 1 then
+            if (gift.Position - rootPos).Magnitude <= MAX_DISTANCE then
+                availableNormalGifts[#availableNormalGifts + 1] = gift
+            end
+        end
+    end
+
+    for _, gift in ipairs(goldengifts:GetChildren()) do
+        if gift.Transparency ~= 1 then
+            if (gift.Position - rootPos).Magnitude <= MAX_DISTANCE then
+                availableGoldenGifts[#availableGoldenGifts + 1] = gift
+            end
+        end
+    end
+end
 
 local function getActiveTripmines()
     local active = {}
@@ -278,6 +360,34 @@ local function getClosestGift(gifts)
     end
 
     return closest, shortest
+end
+
+local function protectTripmine(trip)
+    if not trip:GetAttribute("uuid") then
+        trip:SetAttribute("uuid", HttpService:GenerateGUID(false))
+    end
+
+    local id = trip:GetAttribute("uuid")
+
+    if tripmineprots:FindFirstChild(id) then return end
+
+    local startPos = trip.Position
+
+    local sizeoffset = trip.Size.X + 3
+
+    local p = Instance.new("Part")
+    p.Name = id
+    p.Shape = Enum.PartType.Ball
+    p.Size = Vector3.new(sizeoffset, sizeoffset, sizeoffset)
+    p.Position = startPos
+    p.Anchored = true
+    p.CanCollide = true
+    p.Transparency = 0
+    p.Parent = tripmineprots
+
+    trip:GetPropertyChangedSignal("Transparency"):Once(function()
+        p:Destroy()
+    end)
 end
 
 local function goTo(part, activeTripmines, activeEnemies)
@@ -560,6 +670,8 @@ local function collect(which)
             local root = getRoot(getChar(plr))
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
+            refreshGifts(true)
+
             local gift = getClosestGift(availableGoldenGifts, activeTripmines, activeEnemies)
             if not gift then break end
 
@@ -578,6 +690,8 @@ local function collect(which)
         while true do
             local root = getRoot(getChar(plr))
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
+
+            refreshGifts(true)
 
             local gift = getClosestGift(availableNormalGifts, activeTripmines, activeEnemies)
             if not gift then break end
@@ -846,6 +960,18 @@ mapTab:CreateButton({
     end
 })
 
+mapTab:CreateSection("Tripmines")
+local tpt = mapTab:CreateToggle({
+    Name = "Tripmine Protection",
+    CurrentValue = pt,
+    Callback = function(Value)
+        pt = Value
+        if not Value then
+            tripmineprots:ClearAllChildren()
+        end
+    end
+})
+
 mapTab:CreateSection("Tiles")
 local ni = mapTab:CreateToggle({
     Name = "No Ice Tiles",
@@ -945,6 +1071,7 @@ local vh = plrTab:CreateToggle({
 
 ---------------visual
 
+visualTab:CreateSection("Better ESP Upgrades")
 visualTab:CreateButton({
     Name = "Enable Better Gift ESP",
     Callback = function()
@@ -960,6 +1087,33 @@ visualTab:CreateButton({
         tripEsp.Enabled = true
         tripEsp.FillTransparency = 0.75
         tripEsp.OutlineTransparency = 0
+    end
+})
+
+visualTab:CreateSection("ESP")
+local cge = visualTab:CreateToggle({
+    Name = "Closest Gift Tracer ESP",
+    CurrentValue = cesp,
+    Callback = function(Value)
+        cesp = Value
+    end
+})
+local iet = visualTab:CreateToggle({
+    Name = "Cadence Instrument ESP",
+    CurrentValue = instrumentesp,
+    Callback = function(Value)
+        instrumentesp = Value
+    end
+})
+
+visualTab:CreateSection("Camera")
+local fov = visualTab:CreateSlider({
+    Name = "FOV",
+    Range = {20, 120},
+    Increment = 1,
+    CurrentValue = 70,
+    Callback = function(Value)
+        Camera.FieldOfView = Value
     end
 })
 
@@ -1102,6 +1256,18 @@ local er = debugTab:CreateToggle({
     end
 })
 debugTab:CreateButton({
+    Name = "Rejoin (might not work)",
+    Callback = function()
+	    if #Players:GetPlayers() <= 1 then
+	    	Players.LocalPlayer:Kick("\nRejoining...")
+	    	wait()
+	    	TeleportService:Teleport(PlaceId, plr)
+	    else
+	    	TeleportService:TeleportToPlaceInstance(PlaceId, JobId, plr)
+	    end
+    end
+})
+debugTab:CreateButton({
     Name = "Destroy GUI/Panic",
     Callback = function()
         destroyGui()
@@ -1124,6 +1290,10 @@ local loopClosest
 local giftSelection = {}
 
 local runLoop = RunService.Heartbeat:Connect(function()
+    if aura or tweening or cesp then
+        refreshGifts()
+    end
+
     if aura then
         if #availableNormalGifts == 0 then
             giftSelection = availableGoldenGifts
@@ -1211,39 +1381,204 @@ local runLoop = RunService.Heartbeat:Connect(function()
             connections["walkloop"] = jpc
         end
     end
+
+
+end)
+
+local lastUpdate = 0
+local RATE = 1/30
+
+RunService:BindToRenderStep("ESP", Enum.RenderPriority.Camera.Value + 1, function()
+    local now = tick()
+    if now - lastUpdate < RATE then return end
+    lastUpdate = now
+
+    if instrumentesp then
+        local camPos = Camera.ViewportSize
+
+        if enemies:FindFirstChild("Cadence") then
+            local cadence = enemies:FindFirstChild("Cadence")
+
+            for i, co in cadence:GetChildren() do
+                if co.Name == "ClonedOrb" then
+                
+                    if not co:FindFirstChild("BoxHandleAdornment") then
+                        local box = Instance.new("BoxHandleAdornment")
+                        box.Size = co.Size
+                        box.Adornee = co
+                        box.AlwaysOnTop = true
+                        box.ZIndex = 0
+                        box.Color3 = Color3.new(0,0,1)
+                        box.Transparency = 0.75
+                        box.Parent = co
+                    end
+
+                    if not tracers[co] then
+                        createTracer(co)
+                    end
+
+                    local screenPos, visible = Camera:WorldToViewportPoint(co.Position)
+
+                    local tracer = tracers[co]
+                    if tracer then
+                        local viewport = Camera.ViewportSize
+                        local from = Vector2.new(viewport.X / 2, viewport.Y / 2)
+
+                        local to
+
+                        if visible then
+                            to = Vector2.new(screenPos.X, screenPos.Y)
+                        else
+                            local x = math.clamp(screenPos.X, 0, viewport.X)
+                            local y = math.clamp(screenPos.Y, 0, viewport.Y)
+
+                            to = Vector2.new(x, y)
+                        end
+
+                        tracer.Visible = true
+                        tracer.From = from
+                        tracer.To = to
+                    end
+                end
+            end
+        end
+    else
+        for obj, line in pairs(tracers) do
+            line:Destroy()
+            tracers[obj] = nil
+        end
+    end
+
+    for obj, line in pairs(tracers) do
+        if not obj or not obj:IsDescendantOf(workspace) or not obj.Parent then
+            line:Destroy()
+            tracers[obj] = nil
+        end
+    end
+
+    if cesp then
+        local gift = getClosestAnyGift()
+
+        if gift then
+            local screenPos, visible = Camera:WorldToViewportPoint(gift.Position)
+            local viewport = Camera.ViewportSize
+
+            local from = Vector2.new(viewport.X / 2, viewport.Y / 2)
+            local to
+            local camCF = Camera.CFrame
+            local camPos = camCF.Position
+            local camLook = camCF.LookVector
+            local direction = (gift.Position - camPos).Unit
+            local dot = camLook:Dot(direction)
+
+            if not gift:FindFirstChild("BoxHandleAdornment") then
+                local box = cgb or Instance.new("BoxHandleAdornment")
+                cgb = box
+                box.Size = gift.Size
+                box.Adornee = gift
+                box.AlwaysOnTop = true
+                box.ZIndex = 0
+                box.Color3 = Color3.new(1, 1, 0)
+                box.Transparency = 0.5
+                box.Parent = gift
+            end
+
+            if visible and dot > 0 then
+                to = Vector2.new(screenPos.X, screenPos.Y)
+            else
+                local x = math.clamp(screenPos.X, 0, viewport.X)
+                local y = math.clamp(screenPos.Y, 0, viewport.Y)
+
+                if dot < 0 then
+                    local center = Vector2.new(viewport.X/2, viewport.Y/2)
+                    local dir = (Vector2.new(screenPos.X, screenPos.Y) - center).Unit
+                    to = center + dir * math.max(viewport.X, viewport.Y)
+                else
+                    to = Vector2.new(x, y)
+                end
+            end
+
+            closestGiftTracer.Visible = true
+            closestGiftTracer.From = from
+            closestGiftTracer.To = to
+        else
+            closestGiftTracer.Visible = false
+        end
+    end
+end)
+
+
+RunService:BindToRenderStep("Tripmine", Enum.RenderPriority.Last.Value + 1, function()
+    if pt then
+        for _, trip in getActiveTripmines() do
+            if trip.Transparency ~= 1 then
+                protectTripmine(trip)
+
+                local uuid = trip:GetAttribute("uuid")
+                if uuid then
+                    local p = tripmineprots:FindFirstChild(uuid)
+                    if p then
+                        p.Position = trip.Position
+                    end
+                end
+            end
+        end
+    end
 end)
 
 ---- destroy
 function destroyGui()
     notif("Destroying...", "Nullscape GUI:")
+
     runLoop:Disconnect()
     print("run loop disconnected")
-    task.spawn(function()
-        local n = #giftConnections
-        for i = 1, n do
-            giftConnections[i]:Disconnect()
-            giftConnections[i] = nil
-            if i % 500 == 0 then
-                print(i.." gift connections disconnected...")
-            end
-        end
 
-        print(n.." gift connections disconnected! (background)")
-    end)
+    RunService:UnbindFromRenderStep("ESP")
+    print("esp unbinded")
+
+    RunService:UnbindFromRenderStep("Tripmine")
+    tripmineprots:Destroy()
+    print("tripmine protection unbinded")
+
+    tpt:Set(false)
+    print("tripmine protection off")
+
+    local tn = 0
+    for obj, line in pairs(tracers) do
+        line:Destroy()
+        tracers[obj] = nil
+        tn += 1
+    end
+    closestGiftTracer:Destroy(); tn += 1
+    if cgb then cgb:Destroy() end
+    print("Destroyed", tn, "tracer drawings and esp boxes")
+
     print("disconnecting "..#connections.." connections")
     for _, c in connections do
         c:Disconnect()
     end
+
     vh:Set(false)
     print("visible hitbox off")
+
     vv:Set(false)
     print("visible void off")
+
+    iet:Set(false)
+    print("instrument esp off")
+
+    fov:Set(70)
+    print("reset fov")
+
     avt:Set(false)
     print("anti void off")
+
     er:Set(false)
     print("reset off")
+
     ni:Set(false)
     print("no ice off")
+
     print("destroying rayfield...")
     task.wait(.2)
     Rayfield:Destroy()
