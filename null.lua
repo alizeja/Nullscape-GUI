@@ -48,9 +48,26 @@ local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 local pads = workspace.JumpPads
 local code = ReplicatedStorage.CodeVal
+
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
 tripmineprots.Name = "Tripmine Protection (NULL GUI)"
+
+local velocityPart = Instance.new("Part")
+velocityPart.Name = "VelocityVisualizer"
+velocityPart.Anchored = true
+velocityPart.CanCollide = false
+velocityPart.CanTouch = false
+velocityPart.Material = Enum.Material.Air
+velocityPart.Color = Color3.new(1, 1, 1)
+velocityPart.Size = Vector3.new(0.1, 0.1, 1)
+velocityPart.Parent = workspace
+local vpBox = Instance.new("BoxHandleAdornment")
+vpBox.Color3 = Color3.new(1,1,1)
+vpBox.AlwaysOnTop = true
+vpBox.ZIndex = 0
+vpBox.Adornee = velocityPart
+vpBox.Parent = velocityPart
 
 local tweening = false
 local aura = false
@@ -66,6 +83,7 @@ local av = false
 local noice = false
 local instrumentesp = false
 local pt = false
+local velov = true
 local connections = {}
 
 local dangerlevels = {
@@ -1159,6 +1177,15 @@ local fov = visualTab:CreateSlider({
     end
 })
 
+visualTab:CreateSection("Visualizer")
+local tvelov = visualTab:CreateToggle({
+    Name = "Velocity Visualizer",
+    CurrentValue = velov,
+    Callback = function(Value)
+        velov = Value
+    end
+})
+
 ----------------key
 
 keyTab:CreateKeybind({
@@ -1428,6 +1455,33 @@ local runLoop = RunService.Heartbeat:Connect(function()
         if root.Position.Y <= -610.5 and h.Health > 0 then
             getChar(plr):BreakJoints()
         end
+
+        if velov and not isDead(plr) then
+            local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.25,1)
+            local speed = velocity.Magnitude
+
+            if speed > 0 then
+               local direction = velocity.Unit
+
+                local length = math.clamp(speed * 0.5, 0.5, 100)
+                local t = math.clamp(speed / 75, 0, 1)
+
+                local startPos = root.Position
+                local endPos = startPos + direction * length
+                local midPos = (startPos + endPos) / 2
+
+                velocityPart.Size = Vector3.new(0.2, 0.2, length)
+                velocityPart.CFrame = CFrame.lookAt(midPos, endPos)
+                velocityPart.Color = Color3.new(1, 1 - t, 1 - t)
+                velocityPart.Transparency = 0
+                vpBox.Size = velocityPart.Size
+                vpBox.Color3 = velocityPart.Color
+                vpBox.Transparency = 0.25
+            else
+                velocityPart.Transparency = 1
+                vpBox.Transparency = 1
+            end
+        end
     end
 
     if h then
@@ -1449,14 +1503,12 @@ local runLoop = RunService.Heartbeat:Connect(function()
             connections["walkloop"] = jpc
         end
     end
-
-
 end)
 
 local lastUpdate = 0
 local RATE = 1/30
 
-RunService:BindToRenderStep("ESP", Enum.RenderPriority.Camera.Value + 1, function()
+RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, function()
     local now = tick()
     if now - lastUpdate < RATE then return end
     lastUpdate = now
@@ -1601,8 +1653,8 @@ function destroyGui()
     runLoop:Disconnect()
     print("run loop disconnected")
 
-    RunService:UnbindFromRenderStep("ESP")
-    print("esp unbinded")
+    RunService:UnbindFromRenderStep("DRAWING")
+    print("drawing loop unbinded")
 
     RunService:UnbindFromRenderStep("Tripmine")
     tripmineprots:Destroy()
@@ -1637,6 +1689,10 @@ function destroyGui()
 
     fov:Set(70)
     print("reset fov")
+
+    tvelov:Set(false)
+    velocityPart:Destroy()
+    print("velocity visualizer off and destroyed")
 
     avt:Set(false)
     print("anti void off")
