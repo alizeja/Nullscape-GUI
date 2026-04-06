@@ -1,5 +1,23 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+----------------------some IY funcs (just clipboard ig)
+function missing(t, f, fallback)
+	if type(f) == t then return f end
+	return fallback
+end
+
+everyClipboard = missing("function", setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set))
+
+function toClipboard(txt)
+	if everyClipboard then
+		everyClipboard(tostring(txt))
+		notif("Copied to clipboard", "Clipboard")
+	else
+		notif("Your exploit doesn't have the ability to use the clipboard", "Clipboard")
+	end
+end
+--------------------------------------------------------
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +47,7 @@ local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 local pads = workspace.JumpPads
+local code = ReplicatedStorage.CodeVal
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
 tripmineprots.Name = "Tripmine Protection (NULL GUI)"
@@ -42,6 +61,7 @@ local canToggleAura = true
 local canEzCollectAll = true
 local canGoHome = true
 local canEzDisableAll = true
+local canEzDisableAllC = true
 local av = false
 local noice = false
 local instrumentesp = false
@@ -126,6 +146,13 @@ local greaterBalanceLevels = {
     Tantrum = 5,
     ["Inverse Destruction"] = 5.3
 }
+local clientenemies = {
+    "KooKoo",
+    "Voidbreaker",
+    "Skinwalker",
+    "Dozer",
+}
+
 
 local tracers = {}
 local availableNormalGifts = {}
@@ -142,7 +169,7 @@ local Window = Rayfield:CreateWindow({
    ToggleUIKeybind = "K"
 })
 
-local function notif(text: string, title: string, dur: number)
+function notif(text: string, title: string, dur: number)
     Rayfield:Notify({
         Title = title or "Notification",
         Content = text or "Forgot to add text idiot",
@@ -789,10 +816,20 @@ local function disableSelected(willDestroy: boolean)
         notif("No Enemy Selected")
     end
 end
-local function disableAll(willDestroy: boolean)
+local function disableAll(willDestroy: boolean, client: boolean)
     local allenemies = updateEnemySelection()
     if not allenemies or #allenemies == 0 then
         notif("No enemies available.")
+        return
+    end
+
+    if client then
+        for _, enemy in clientenemies do
+            if not enemies:FindFirstChild(enemy) then continue end
+            print("disabling client:", enemy)
+            disableEnemy(enemy, willDestroy)
+        end
+
         return
     end
 
@@ -801,6 +838,12 @@ local function disableAll(willDestroy: boolean)
     end
 end
 
+mainTab:CreateButton({
+    Name = "Disable Client-sided Enemies Only",
+    Callback = function()
+        disableAll(false, true)
+    end
+})
 mainTab:CreateButton({
     Name = "Disable Selected Enemies",
     Callback = function()
@@ -1138,6 +1181,15 @@ keyTab:CreateKeybind({
         disableSelected()
     end
 })
+keyTab:CreateKeybind({
+    Name = "Disable All Client-sided Enemies Only",
+    CurrentKeybind = "J",
+    HoldToInteract = false,
+    Callback = function(key)
+        if not canEzDisableAllC then return end
+        disableAll(false, true)
+    end
+})
 local canPress = true
 keyTab:CreateKeybind({
     Name = "Instantly Grapple to Nearest Jump Pad (Grappler Class Needed)",
@@ -1225,6 +1277,13 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
+    Name = "Disable All Enemies Keybind",
+    CurrentValue = canEzDisableAllC,
+    Callback = function(Value)
+        canEzDisableAllC = Value
+    end
+})
+keyTab:CreateToggle({
     Name = "Instant Grapple Keybind",
     CurrentValue = canInstaGrapple,
     Callback = function(Value)
@@ -1246,7 +1305,17 @@ keyTab:CreateToggle({
     end
 })
 
--------------------------- debug
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-- debug
+debugTab:CreateButton({
+    Name = "Copy Lobby Code",
+    Callback = function()
+        if code.Value == nil or code.Value == " " or code.Value == "" then
+            notif("You are in solo or code not found.", "Code")
+            return
+        end
+        toClipboard(code.Value)
+    end
+})
 local er = debugTab:CreateToggle({
     Name = "Enable Reset",
     CurrentValue = false,
