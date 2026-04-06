@@ -1277,7 +1277,7 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
-    Name = "Disable All Enemies Keybind",
+    Name = "Disable All Client-sided Enemies Only Keybind",
     CurrentValue = canEzDisableAllC,
     Callback = function(Value)
         canEzDisableAllC = Value
