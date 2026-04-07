@@ -1122,7 +1122,7 @@ mapTab:CreateButton({
     Callback = function()
         local n = updateIceParts()
         if n then
-            ilabel:Set("Ice Tiles Detected:", n)
+            ilabel:Set("Ice Tiles Detected: "..n)
         end
     end
 })
