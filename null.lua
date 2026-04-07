@@ -302,10 +302,6 @@ local function updateIceParts()
 end
 
 local lastRefresh = 0
-local currentAvailableGifts = #availableNormalGifts
-if #availableNormalGifts == 0 then
-    currentAvailableGifts = #availableGoldenGifts
-end
 local scanIndex = 1
 local scanIndexTwo = 1
 local SCAN_SIZE = 100
@@ -329,8 +325,12 @@ table.insert(connections, ggcr)
 updateGiftLists()
 
 local function refreshGifts(skip)
+    local currentAvailableGifts = #availableNormalGifts
+    if #availableNormalGifts == 0 then
+        currentAvailableGifts = #availableGoldenGifts
+    end
     local REFRESH_RATE = (currentAvailableGifts > 5000 and 1/0.25) or  (currentAvailableGifts > 3000 and 1/1) or (currentAvailableGifts > 1500 and 1/3) or (currentAvailableGifts > 1000 and 1/5) or (currentAvailableGifts > 500 and 1/12.5) or 1/25
-    
+
     if not skip then
         if tick() - lastRefresh < REFRESH_RATE then return end
         lastRefresh = tick()
