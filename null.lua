@@ -831,7 +831,7 @@ local function collect(which)
 end
 
 ---------button
-mainTab:CreateSection("Gifts")
+mainTab:CreateSection("Gifts  (LAGGY ON HIGHER LEVELS)")
 mainTab:CreateButton({
     Name = "Collect ALL Gifts",
     Callback = function()
@@ -851,7 +851,7 @@ mainTab:CreateButton({
     end
 })
 local ga = mainTab:CreateToggle({
-    Name = "Collect Aura",
+    Name = "Collect Aura (LAGGY ON HIGHER LEVELS)",
     CurrentValue = aura,
     Callback = function(Value)
         aura = Value
@@ -1239,7 +1239,7 @@ visualTab:CreateButton({
 
 visualTab:CreateSection("ESP")
 local cge = visualTab:CreateToggle({
-    Name = "Closest Gift Tracer ESP",
+    Name = "Closest Gift Tracer ESP  (LAGGY ON HIGHER LEVELS)",
     CurrentValue = cesp,
     Callback = function(Value)
         cesp = Value
@@ -1720,6 +1720,8 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
         else
             closestGiftTracer.Visible = false
         end
+    else
+        closestGiftTracer.Visible = false
     end
 end)
 
