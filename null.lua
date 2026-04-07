@@ -1602,7 +1602,14 @@ local RATE = 1/30
 
 RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, function()
     local plrdead = isDead(plr)
-    if plrdead then return end
+
+    if plrdead then
+        for obj, line in pairs(tracers) do
+            line:Destroy()
+            tracers[obj] = nil
+        end
+        return
+    end
 
     local now = tick()
     if now - lastUpdate < RATE then return end
