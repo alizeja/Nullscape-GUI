@@ -83,7 +83,7 @@ local av = false
 local noice = false
 local instrumentesp = false
 local pt = false
-local velov = true
+local velov = false
 local connections = {}
 
 local dangerlevels = {
@@ -175,6 +175,7 @@ local clientenemies = {
 local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
+local iceParts = {}
 local cgb
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -211,6 +212,7 @@ local function getHuman(char)
 end
 
 local function getRoot(char, humanoid)
+    if not char then return nil end
     if not humanoid then humanoid = getHuman(char) end
     return char:FindFirstChild("HumanoidRootPart") or (humanoid and humanoid.RootPart), char:FindFirstChild("Hitbox")
 end
@@ -241,23 +243,31 @@ local function getClosestAnyGift()
     local root = getRoot(char)
     if not root then return end
 
-    local closest = nil
-    local shortest = math.huge
+    local rootPos = root.Position
+    local closest, shortest = nil, math.huge
 
     local function check(list)
         for _, gift in ipairs(list) do
-            if gift and gift.Parent then
-                local dist = (gift.Position - root.Position).Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    closest = gift
-                end
+            if gift and gift.Transparency == 0 then
+                task.spawn(function()
+                    print("candidate:", gift)
+
+                    local diff = gift.Position - rootPos
+                    local dist = diff.Magnitude
+                
+                    if dist < shortest then
+                        shortest = dist
+                        closest = gift
+                    end
+                end)
             end
         end
+        task.wait(.1)
     end
 
     check(availableNormalGifts)
     check(availableGoldenGifts)
+    print(closest)
 
     return closest
 end
@@ -279,9 +289,45 @@ local function removeTracer(obj)
     end
 end
 
+local function updateIceParts()
+    table.clear(iceParts)
+
+    for _, part in ipairs(currentRooms:GetDescendants()) do
+        if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
+            iceParts[#iceParts+1] = part
+        end
+    end
+
+    return #iceParts
+end
 
 local lastRefresh = 0
-local REFRESH_RATE = 0.2
+local currentAvailableGifts = #availableNormalGifts
+if #availableNormalGifts == 0 then
+    currentAvailableGifts = #availableGoldenGifts
+end
+local REFRESH_RATE =  (currentAvailableGifts > 5000 and 1/1) or (currentAvailableGifts > 1500 and 1/3) or (currentAvailableGifts > 1000 and 1/5) or (currentAvailableGifts > 500 and 1/12.5) or 1/25
+local scanIndex = 1
+local scanIndexTwo = 1
+local SCAN_SIZE = 100
+local normalList = {}
+local goldenList = {}
+
+local function updateGiftLists()
+    normalList = gifts:GetChildren()
+    goldenList = goldengifts:GetChildren()
+end
+
+local gca = gifts.ChildAdded:Connect(updateGiftLists)
+local gcr = gifts.ChildRemoved:Connect(updateGiftLists)
+local ggca = goldengifts.ChildAdded:Connect(updateGiftLists)
+local ggcr = goldengifts.ChildRemoved:Connect(updateGiftLists)
+table.insert(connections, gca)
+table.insert(connections, gcr)
+table.insert(connections, ggca)
+table.insert(connections, ggcr)
+
+updateGiftLists()
 
 local function refreshGifts(skip)
     if not skip then
@@ -289,30 +335,57 @@ local function refreshGifts(skip)
         lastRefresh = tick()
     end
 
-    table.clear(availableNormalGifts)
-    table.clear(availableGoldenGifts)
-
     local char = getChar(plr)
     local root = getRoot(char)
     if not root then return end
 
     local rootPos = root.Position
-    local MAX_DISTANCE = 500
+    local MAX_DIST_squard = 500 * 500
 
-    for _, gift in ipairs(gifts:GetChildren()) do
-        if gift.Transparency ~= 1 then
-            if (gift.Position - rootPos).Magnitude <= MAX_DISTANCE then
-                availableNormalGifts[#availableNormalGifts + 1] = gift
+    for i = 1, SCAN_SIZE do
+        task.spawn(function()
+            local gift = normalList[scanIndex]
+            if not gift then
+                scanIndex = 1
+                return
             end
-        end
+
+            if gift.Transparency ~= 1 then
+                local dx = gift.Position.X - rootPos.X
+                local dy = gift.Position.Y - rootPos.Y
+                local dz = gift.Position.Z - rootPos.Z
+                local dist = dx*dx + dy*dy + dz*dz
+
+                if dist <= MAX_DIST_squard then
+                    availableNormalGifts[#availableNormalGifts+1] = gift
+                end
+            end
+
+            scanIndex += 1
+        end)
     end
 
-    for _, gift in ipairs(goldengifts:GetChildren()) do
-        if gift.Transparency ~= 1 then
-            if (gift.Position - rootPos).Magnitude <= MAX_DISTANCE then
-                availableGoldenGifts[#availableGoldenGifts + 1] = gift
+    for i = 1, SCAN_SIZE do
+        task.spawn(function()
+            local gift = goldenList[scanIndexTwo]
+            if not gift then
+                scanIndexTwo = 1
+                return
             end
-        end
+
+            if gift.Transparency ~= 1 then
+                local dx = gift.Position.X - rootPos.X
+                local dy = gift.Position.Y - rootPos.Y
+                local dz = gift.Position.Z - rootPos.Z
+                local dist = dx*dx + dy*dy + dz*dz
+
+                if dist <= MAX_DIST_squard then
+                    availableGoldenGifts[#availableGoldenGifts+1] = gift
+                end
+            end
+
+            scanIndexTwo += 1
+        end)
     end
 end
 
@@ -322,14 +395,6 @@ local function getActiveTripmines()
         if mine.Transparency ~= 1 then
             table.insert(active, mine)
         end
-    end
-    return active
-end
-
-local function getActiveEnemies()
-    local active = {}
-    for _, enemy in enemies:GetChildren() do
-        table.insert(active, enemy)
     end
     return active
 end
@@ -384,19 +449,19 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     return false
 end
 
-local function getClosestGift(gifts)
+local function getClosestGift(giftList)
     local char = getChar(plr)
     local root = getRoot(char)
     if not root then return end
 
-    local giftsList = gifts
-    local closest = nil
-    local shortest = math.huge
+    local rootPos = root.Position
+    local closest, shortest = nil, math.huge
 
-    for _, gift in ipairs(giftsList) do
-        if gift and gift.Parent then
-            local pos = gift.Position
-            local dist = (pos - root.Position).Magnitude
+    for _, gift in ipairs(giftList) do
+        if gift and gift.Transparency == 0 then 
+            local diff = gift.Position - rootPos
+            local dist = diff.Magnitude
+
             if dist < shortest then
                 shortest = dist
                 closest = gift
@@ -436,17 +501,20 @@ local function protectTripmine(trip)
 end
 
 local function goTo(part, activeTripmines, activeEnemies)
+    if not activeEnemies then activeEnemies = enemies:GetChildren() end
     if not part then return end
     local char = getChar(plr)
     local root, hitbox = getRoot(char)
+    local rootPos = root and root.Position
     if not root or not hitbox then return end
 
     local pos = part:IsA("Model") and part:GetPivot().Position or part.Position
     if part.Name == "Spawn" then pos += Vector3.new(0,4,0) end
-    local dist = (pos - root.Position).Magnitude
+    local diff = pos - rootPos
+    local dist = diff.Magnitude
     if dist == 0 then return end
 
-    local direction = (pos - root.Position).Unit
+    local direction = diff.Unit
     root.CFrame = CFrame.new(root.Position, root.Position + direction) * CFrame.Angles(0, math.rad(90), 0)
 
     local blocked = pathBlocked(pos, activeTripmines, activeEnemies)
@@ -608,6 +676,7 @@ local function disableEnemy(enemyName, willDestroy)
             end
 
             local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
+            n += loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers)
 
             if n > 0 then
                 notif(tostring(n).." Skinwalker(s) disabled.")
@@ -705,27 +774,27 @@ end
 ---------------------collection
 local function collect(which)
     local activeTripmines = getActiveTripmines()
-    local activeEnemies = getActiveEnemies()
 
     local function collectGolden()
         if tweening then notif("Already collecting.") return end
         tweening = true
 
         while true do
-            local root = getRoot(getChar(plr))
+            local char = getChar(plr)
+            local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
             refreshGifts(true)
 
-            local gift = getClosestGift(availableGoldenGifts, activeTripmines, activeEnemies)
-            if not gift then break end
+            local gift = getClosestGift(availableGoldenGifts)
+            if not gift then print(gift, "| gift not found") break end
 
-            local tween = goTo(gift, activeTripmines, activeEnemies)
+            local tween = goTo(gift, activeTripmines, enemies)
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
         end
-        goTo(spawnPart, activeTripmines, activeEnemies)
+        goTo(spawnPart, activeTripmines)
         tweening = false
     end
 
@@ -733,21 +802,22 @@ local function collect(which)
         if tweening then notif("Already collecting.") return end
         tweening = true
         while true do
-            local root = getRoot(getChar(plr))
+            local char = getChar(plr)
+            local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
             refreshGifts(true)
 
-            local gift = getClosestGift(availableNormalGifts, activeTripmines, activeEnemies)
+            local gift = getClosestGift(availableNormalGifts)
             if not gift then break end
 
-            local tween = goTo(gift, activeTripmines, activeEnemies)
+            local tween = goTo(gift, activeTripmines)
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
         end
         tweening = false
-        if getGoldenAfter then task.wait(1) collectGolden() end
+        if getGoldenAfter then task.wait(3) collectGolden() end
     end
 
     if which == "normal" then
@@ -804,8 +874,8 @@ local function updateEnemySelection()
     local enemiesactive = {}
     local seen = {}
 
-    local activeEnemies = getActiveEnemies()
-    if not activeEnemies or #activeEnemies == 0 then
+    local activeEnemies = enemies:GetChildren()
+    if #activeEnemies == 0 then
         selectEnemies:Refresh({})
         selectEnemies:Set({})
         return {}
@@ -1019,6 +1089,12 @@ mapTab:CreateButton({
         activateAltar()
     end
 })
+mapTab:CreateButton({
+    Name = "Find Altars",
+    Callback = function()
+        updateAltarSelection()
+    end
+})
 
 mapTab:CreateSection("Tripmines")
 local tpt = mapTab:CreateToggle({
@@ -1033,11 +1109,21 @@ local tpt = mapTab:CreateToggle({
 })
 
 mapTab:CreateSection("Tiles")
+local ilabel = mapTab:CreateLabel("Ice Tiles Detected: 0")
 local ni = mapTab:CreateToggle({
-    Name = "No Ice Tiles",
+    Name = "Remove Detected Ice Tiles",
     CurrentValue = noice,
     Callback = function(Value)
         noice = Value
+    end
+})
+mapTab:CreateButton({
+    Name = "Find Ice Tiles",
+    Callback = function()
+        local n = updateIceParts()
+        if n then
+            ilabel:Set("Ice Tiles Detected:", n)
+        end
     end
 })
 
@@ -1156,6 +1242,7 @@ local cge = visualTab:CreateToggle({
     CurrentValue = cesp,
     Callback = function(Value)
         cesp = Value
+        closestGiftTracer.Visible = cesp
     end
 })
 local iet = visualTab:CreateToggle({
@@ -1345,11 +1432,12 @@ debugTab:CreateButton({
 })
 local er = debugTab:CreateToggle({
     Name = "Enable Reset",
-    CurrentValue = false,
+    CurrentValue = true,
     Callback = function(Value)
         StarterGui:SetCore("ResetButtonCallback", Value)
     end
 })
+StarterGui:SetCore("ResetButtonCallback", true)
 debugTab:CreateButton({
     Name = "Rejoin (might not work)",
     Callback = function()
@@ -1375,21 +1463,28 @@ local eca = enemies.ChildAdded:Connect(updateEnemySelection)
 table.insert(connections, eca)
 local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
 table.insert(connections, ecr)
-local crca = currentRooms.ChildAdded:Connect(updateAltarSelection)
-table.insert(connections, crca)
-local crcr = currentRooms.ChildRemoved:Connect(updateAltarSelection)
-table.insert(connections, crcr)
 
 ----loops!
 local loopClosest
 local giftSelection = {}
 
+local lastAura = 0
+local auraRATE = 1/45
+
 local runLoop = RunService.Heartbeat:Connect(function()
-    if aura or tweening or cesp then
+    if (aura or tweening or cesp) and not isDead(plr) then
         refreshGifts()
     end
 
-    if aura then
+    local plrdead = isDead(plr)
+    local char = getChar(plr)
+    local root, hitbox = getRoot(char)
+    local h = getHuman(char)
+
+    local auranow = tick()
+    if aura and auranow - lastAura > auraRATE then
+        lastAura = auranow
+
         if #availableNormalGifts == 0 then
             giftSelection = availableGoldenGifts
         elseif #availableGoldenGifts == 0 then
@@ -1404,26 +1499,22 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
 
-    if visibleHitbox then
-        local root, hitbox = getRoot(getChar(plr))
+    if visibleHitbox and not plrdead then
         if root and hitbox then
             hitbox.Transparency = 0
         end
     end
 
-    if noice then
-        if #currentRooms:GetChildren() ~= 0 then
-            for _, part in currentRooms:GetDescendants() do
-                if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
-                    part.Material = Enum.Material.Air
-                end
+    if noice and #iceParts > 0 then
+        for i, tile in pairs(iceParts) do
+            if tile.Material == Enum.Material.Ice then
+                tile.Material = Enum.Material.Air
+                iceparts[i] = nil
             end
         end
     end
 
     if av then
-        local root:BasePart, hitbox = getRoot(getChar(plr))
-
         if root and root.Position.Y <= -550 then
             if antiVoidSelection == 1 then
                 local pos = spawnPart.Position + Vector3.new(0,4,0)
@@ -1432,9 +1523,9 @@ local runLoop = RunService.Heartbeat:Connect(function()
                 local alv = root.AssemblyLinearVelocity
                 root.AssemblyLinearVelocity = Vector3.new(alv.X,lp,alv.Z)
             elseif antiVoidSelection == 3 then
-                local gifts = availableNormalGifts
-                if #gifts == 0 then gifts = availableGoldenGifts end
-                local gift = getClosestGift(gifts)
+                local availableGifts = availableNormalGifts
+                if #availableGifts == 0 then availableGifts = availableGoldenGifts end
+                local gift = getClosestGift(availableGifts)
 
                 if gift then
                     root.Position = gift.Position
@@ -1448,15 +1539,13 @@ local runLoop = RunService.Heartbeat:Connect(function()
             hitbox.Position = root.Position
         end
     end
-    local root, hitbox = getRoot(getChar(plr))
-    local h = getHuman(getChar(plr))
     if root and hitbox then
         hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
         if root.Position.Y <= -610.5 and h.Health > 0 then
             getChar(plr):BreakJoints()
         end
 
-        if velov and not isDead(plr) then
+        if velov and not plrdead then
             local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.25,1)
             local speed = velocity.Magnitude
 
@@ -1500,7 +1589,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
 
                 h.JumpPower = jp
             end)
-            connections["walkloop"] = jpc
+            connections["jumploop"] = jpc
         end
     end
 end)
@@ -1513,7 +1602,9 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
     if now - lastUpdate < RATE then return end
     lastUpdate = now
 
-    if instrumentesp then
+    local plrdead = isDead(plr)
+
+    if instrumentesp and not plrdead then
         local camPos = Camera.ViewportSize
 
         if enemies:FindFirstChild("Cadence") then
@@ -1576,7 +1667,7 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
         end
     end
 
-    if cesp then
+    if cesp and not plrdead then
         local gift = getClosestAnyGift()
 
         if gift then
@@ -1671,7 +1762,7 @@ function destroyGui()
     end
     closestGiftTracer:Destroy(); tn += 1
     if cgb then cgb:Destroy() end
-    print("Destroyed", tn, "tracer drawings and esp boxes")
+    print("Destroyed", tn, "tracer drawings and/or esp boxes")
 
     print("disconnecting "..#connections.." connections")
     for _, c in connections do
@@ -1707,3 +1798,7 @@ function destroyGui()
     task.wait(.2)
     Rayfield:Destroy()
 end
+
+refreshGifts(true)
+
+notif("Null GUI Executed", "Null GUI")
