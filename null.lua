@@ -1478,6 +1478,8 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
 
     local plrdead = isDead(plr)
+    if plrdead then return end
+    
     local char = getChar(plr)
     local root, hitbox = getRoot(char)
     local h = getHuman(char)
@@ -1500,7 +1502,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
 
-    if visibleHitbox and not plrdead then
+    if visibleHitbox then
         if root and hitbox then
             hitbox.Transparency = 0
         end
@@ -1546,7 +1548,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
             getChar(plr):BreakJoints()
         end
 
-        if velov and not plrdead then
+        if velov then
             local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.25,1)
             local speed = velocity.Magnitude
 
@@ -1599,13 +1601,15 @@ local lastUpdate = 0
 local RATE = 1/30
 
 RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, function()
+    local plrdead = isDead(plr)
+    if plrdead then return end
+
     local now = tick()
     if now - lastUpdate < RATE then return end
     lastUpdate = now
 
-    local plrdead = isDead(plr)
 
-    if instrumentesp and not plrdead then
+    if instrumentesp then
         local camPos = Camera.ViewportSize
 
         if enemies:FindFirstChild("Cadence") then
@@ -1668,7 +1672,7 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
         end
     end
 
-    if cesp and not plrdead then
+    if cesp then
         local gift = getClosestAnyGift()
 
         if gift then
