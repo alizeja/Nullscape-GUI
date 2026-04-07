@@ -1251,6 +1251,12 @@ local iet = visualTab:CreateToggle({
     CurrentValue = instrumentesp,
     Callback = function(Value)
         instrumentesp = Value
+        if not Value then
+            for obj, line in pairs(tracers) do
+                line:Destroy()
+                tracers[obj] = nil
+            end
+        end
     end
 })
 
