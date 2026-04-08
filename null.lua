@@ -176,7 +176,7 @@ local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
 local iceParts = {}
-local cgb
+local 
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -1732,9 +1732,11 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
             closestGiftTracer.To = to
         else
             closestGiftTracer.Visible = false
+			if cgb then cgb.Transparency = 1 end
         end
     else
         closestGiftTracer.Visible = false
+		if cgb then cgb.Transparency = 1 end
     end
 end)
 
