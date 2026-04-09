@@ -1550,7 +1550,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
     if root and hitbox then
         hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
         if root.Position.Y <= -610.5 and h.Health > 0 then
-            getChar(plr):BreakJoints()
+            h:ChangeState(Enum.HumanoidStateType.Dead)
         end
 
         if velov then
