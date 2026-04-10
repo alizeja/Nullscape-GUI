@@ -429,7 +429,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
             return true
         end
     end
-    for _, enemy in activeEnemies do
+    for _, enemy in activeEnemies:GetChildren() do
         if enemy:HasTag(".Disabled") then continue end
         local pos = enemy.Position
         local size = enemy.Size
