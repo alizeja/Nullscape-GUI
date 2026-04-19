@@ -27,7 +27,7 @@ local UserInputService = game:GetService("UserInputService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-PlaceId, JobId = game.PlaceId, game.JobId
+local PlaceId, JobId = game.PlaceId, game.JobId
 
 local plr = Players.LocalPlayer
 
@@ -35,14 +35,13 @@ local events = ReplicatedStorage.Events
 
 local Camera = workspace.CurrentCamera
 local spawnPart = workspace.Spawn
-local items = workspace.ItemPools
+local items = workspace.Item_Pools
 local gifts = items.NormalGifts
 local goldengifts = items.GoldenGifts
 local tripmines = items.Tripmines
-local fleshp = items.FleshProjectile
 local enemies = workspace.Enemies
 local giftEsp = workspace.Showlocation
-local tripEsp = workspace.ShowlocationTrip
+local tripEsp = workspace.TripmineShowlocation
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
@@ -75,7 +74,6 @@ local cesp = false
 local visibleHitbox = false
 local canInstaGrapple = false
 local canToggleAura = true
-local canEzCollectAll = true
 local canGoHome = true
 local canEzDisableAll = true
 local canEzDisableAllC = true
@@ -90,13 +88,13 @@ local dangerlevels = {
     Bell = 0.5,
     Mart = 0.75,
     Springer = 1.2,
-    Dozer = 1.4,
+    Operator = 1.4,
     ICBM = 1.7,
     Nil = 1.9,
     Flesh = 2,
     Guardian = 2.1,
-    Kookoo = 2.4,
-    Skinwalker = 2.6,
+    Kolona = 2.4,
+    Husk = 2.6,
     ["Voidbound Guardian"] = 2.9,
     Baby = 3,
     Telefragger = 3.3,
@@ -105,7 +103,7 @@ local dangerlevels = {
     Cadence = 5
 }
 local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
-    ["Further Skinwalker"] = .6,
+    ["Further Husk"] = .6,
     ["Savory Ring"] = .7,
     Idiotware = .9,
     ["Lower Gravity"] = 1,
@@ -123,15 +121,15 @@ local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR 
     ["Mart Infection"] = 2.7,
     ["Bigger Blast"] = 2.8,
     Shotgun = 2.9,
-    ["Closer Skinwalker"] = 3,
-    ["Taller Skinwalker"] = 3.1,
+    ["Closer Husk"] = 3,
+    ["Taller Husk"] = 3.1,
     ["Bloodier Meat"] = 3.2,
     ["Beacon Mirage"] = 3.3,
     Cheeseware = 3.4,
     ["Conga Line"] = 3.5,
     ["Missile Silo"] = 3.6,
     ["Mighty Chivalry"] = 3.7,
-    ["Random Skinwalker"] = 3.8,
+    ["Random Husk"] = 3.8,
     ["More Tripmines"] = 3.9,
     ["Bigger Tripmines"] = 4,
     Springloaded = 4.2,
@@ -165,10 +163,10 @@ local greaterBalanceLevels = {
     ["Inverse Destruction"] = 5.3
 }
 local clientenemies = {
-    "KooKoo",
+    "Kolona",
     "Voidbreaker",
-    "Skinwalker",
-    "Dozer",
+    "Husk",
+    "Operator",
 }
 
 
@@ -176,6 +174,7 @@ local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
 local iceParts = {}
+local cgb
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -201,6 +200,17 @@ local plrTab = Window:CreateTab("Player")
 local visualTab = Window:CreateTab("Visual")
 local keyTab = Window:CreateTab("Keybinds")
 local debugTab = Window:CreateTab("Debug")
+
+local function safeFind(root, path)
+    local current = root
+
+    for _, name in ipairs(path) do
+        if not current then return nil end
+        current = current:FindFirstChild(name)
+    end
+
+    return current
+end
 
 local function getChar(player)
     return player.Character or player.CharacterAdded:Wait()
@@ -231,6 +241,36 @@ local function isDead(target: Player? | Model?)
     end
 end
 
+local enemyimage = "rbxassetid://90968042204988"
+local curseimage = "rbxassetid://71252790926685"
+local upgradeimage = "rbxassetid://109624131383272"
+
+local function checkIntermissionType()
+    selection = selection or workspace:FindFirstChild("Select")
+    local currentType = "ENEMIES"
+
+    if selection then
+        local imagelabel = safeFind(selection, {
+            "Sign",
+            "Billboard",
+            "ImageLabel"
+        })
+
+        if imagelabel then
+            if imagelabel.Image == enemyimage then
+                currentType = "ENEMIES"
+            elseif imagelabel.Image == curseimage then
+                currentType = "CURSES"
+            elseif imagelabel.Image == upgradeimage then
+                currentType = "UPGRADES"
+            end
+        end
+    end
+
+    print(currentType)
+    return currentType
+end
+
 local closestGiftTracer = Drawing.new("Line")
 closestGiftTracer.Visible = false
 closestGiftTracer.Thickness = 3
@@ -247,10 +287,8 @@ local function getClosestAnyGift()
 
     local function check(list)
         for _, gift in ipairs(list) do
-            if gift and gift.Transparency == 0 then
+            if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect") ~= nil then
                 task.spawn(function()
-                    print("candidate:", gift)
-
                     local diff = gift.Position - rootPos
                     local dist = diff.Magnitude
                 
@@ -261,7 +299,6 @@ local function getClosestAnyGift()
                 end)
             end
         end
-        task.wait(.1)
     end
 
     check(availableNormalGifts)
@@ -323,12 +360,12 @@ table.insert(connections, ggcr)
 
 updateGiftLists()
 
-local function refreshGifts(skip)
+local function refreshGifts(skip, golden)
     local currentAvailableGifts = #availableNormalGifts
-    if #availableNormalGifts == 0 then
+    if #availableNormalGifts == 0 or golden then
         currentAvailableGifts = #availableGoldenGifts
     end
-    local REFRESH_RATE = (currentAvailableGifts > 5000 and 1/0.25) or  (currentAvailableGifts > 3000 and 1/1) or (currentAvailableGifts > 1500 and 1/3) or (currentAvailableGifts > 1000 and 1/5) or (currentAvailableGifts > 500 and 1/12.5) or 1/25
+    local REFRESH_RATE = (currentAvailableGifts > 5000 and 1/0.25) or (currentAvailableGifts > 3000 and 1/1) or (currentAvailableGifts > 1500 and 1/3) or (currentAvailableGifts > 1000 and 1/5) or (currentAvailableGifts > 500 and 1/12.5) or 1/25
 
     if not skip then
         if tick() - lastRefresh < REFRESH_RATE then return end
@@ -340,7 +377,6 @@ local function refreshGifts(skip)
     if not root then return end
 
     local rootPos = root.Position
-    local MAX_DIST_squard = 500 * 500
 
     for i = 1, SCAN_SIZE do
         task.spawn(function()
@@ -350,13 +386,10 @@ local function refreshGifts(skip)
                 return
             end
 
-            if gift.Transparency ~= 1 then
-                local dx = gift.Position.X - rootPos.X
-                local dy = gift.Position.Y - rootPos.Y
-                local dz = gift.Position.Z - rootPos.Z
-                local dist = dx*dx + dy*dy + dz*dz
+            if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+                local dist = (rootPos - gift.Position).Magnitude
 
-                if dist <= MAX_DIST_squard then
+                if dist <= 500 then
                     availableNormalGifts[#availableNormalGifts+1] = gift
                 end
             end
@@ -373,13 +406,10 @@ local function refreshGifts(skip)
                 return
             end
 
-            if gift.Transparency ~= 1 then
-                local dx = gift.Position.X - rootPos.X
-                local dy = gift.Position.Y - rootPos.Y
-                local dz = gift.Position.Z - rootPos.Z
-                local dist = dx*dx + dy*dy + dz*dz
+            if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+                local dist = (rootPos - gift.Position).Magnitude
 
-                if dist <= MAX_DIST_squard then
+                if dist <= 500 then
                     availableGoldenGifts[#availableGoldenGifts+1] = gift
                 end
             end
@@ -429,7 +459,7 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
             return true
         end
     end
-    for _, enemy in activeEnemies:GetChildren() do
+    for _, enemy in activeEnemies do
         if enemy:HasTag(".Disabled") then continue end
         local pos = enemy.Position
         local size = enemy.Size
@@ -458,7 +488,7 @@ local function getClosestGift(giftList)
     local closest, shortest = nil, math.huge
 
     for _, gift in ipairs(giftList) do
-        if gift and gift.Transparency == 0 then 
+        if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect") then 
             local diff = gift.Position - rootPos
             local dist = diff.Magnitude
 
@@ -521,8 +551,6 @@ local function goTo(part, activeTripmines, activeEnemies)
     if blocked and (part.Name == "Gift" or part.Name == "GoldGift") then
         root.Position = pos
         hitbox.Position = pos
-        task.wait(.1)
-        collectGift:FireServer(part)
         return
     end
 
@@ -540,7 +568,7 @@ local function goTo(part, activeTripmines, activeEnemies)
             task.wait(0.05)
         end
     end)
-    tween.Completed:Connect(function()
+    tween.Completed:Once(function()
         hitbox.Position = root.Position
     end)
 
@@ -548,10 +576,10 @@ local function goTo(part, activeTripmines, activeEnemies)
 end
 
 local function findBestSelection()
-    local selection = workspace:FindFirstChild("Select")
+    local selection = selection or workspace:FindFirstChild("Select")
     if not selection then return end
 
-    local intermission = selection.Sign.Billboard.TextLabel.Text
+    local intermission = checkIntermissionType()
 
     local bestchoice
     local danger = math.huge
@@ -667,7 +695,7 @@ local function disableEnemy(enemyName, willDestroy)
         Skinwalker = function(name, willDestroy)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
-                notif("Skinwalker isn't following you yet.")
+                notif("Husk isn't following you yet.")
                 return
             end
             if willDestroy then
@@ -677,46 +705,29 @@ local function disableEnemy(enemyName, willDestroy)
 
             local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
             n += loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers)
+            n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
 
             if n > 0 then
-                notif(tostring(n).." Skinwalker(s) disabled.")
+                notif(tostring(n).." Husk(s) disabled.")
             else
-                notif("Skinwalkers already disabled.")
+                notif("Husks are already disabled.")
             end
-        end,
-        Flesh = function(name, willDestroy)
-            for _, b in fleshp:GetChildren() do
-                b:Destroy()
-            end
-            if willDestroy then
-                destroyEnemy(name)
-                return
-            end
-
-            disableFunction.Basic("Flesh", "TouchInterest")
         end,
         Springer = function(name, willDestroy)
-            if willDestroy then
-                destroyEnemy(name)
-                return
-            end
-            local n = loopEnemies("Springer", "SpringerShockwave")
-
-            if n > 0 then
-                notif(tostring(n).." Springer(s) shockwaves disabled. Cannot disable smashing.")
-            else
-                notif("No Springers left to be disabled.")
-            end
+            destroyEnemy(name)
         end,
-        KooKoo = function(name, willDestroy)
+        Kolona = function(name, willDestroy)
            destroyEnemy(name)
         end,
-        Dozer = function(name, willDestroy)
+        Operator = function(name, willDestroy)
            destroyEnemy(name)
         end,
         Voidbreaker = function(name, willDestroy)
            destroyEnemy(name)
         end,
+        ICBM = function(name, willDestroy)
+            destroyEnemy(name)
+        end
     }
 
     if disableFunction[enemyName] then
@@ -779,29 +790,34 @@ local function collect(which)
         if tweening then notif("Already collecting.") return end
         tweening = true
 
-        while true do
+        while tweening do
             local char = getChar(plr)
             local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
-            refreshGifts(true)
+            refreshGifts(true, true)
 
             local gift = getClosestGift(availableGoldenGifts)
-            if not gift then print(gift, "| gift not found") break end
+            if not gift then
+                notif("no golden gifts, or currently finding golden gifts", "Gift Not Found")
+                print("golden gifts", "| gift not found")
+                break
+            end
+            print("found:", gift)
 
-            local tween = goTo(gift, activeTripmines, enemies)
+            local tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
         end
-        goTo(spawnPart, activeTripmines)
         tweening = false
     end
 
     local function collectNormal(getGoldenAfter)
         if tweening then notif("Already collecting.") return end
         tweening = true
-        while true do
+
+        while tweening do
             local char = getChar(plr)
             local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
@@ -809,9 +825,14 @@ local function collect(which)
             refreshGifts(true)
 
             local gift = getClosestGift(availableNormalGifts)
-            if not gift then break end
+            if not gift then
+                notif("no gifts, or currently finding gifts", "Gift Not Found")
+                print("normal gifts", "| gift not found")
+                break
+            end
+            print("found:", gift, gift.Transparency)
 
-            local tween = goTo(gift, activeTripmines)
+            local tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
@@ -824,18 +845,14 @@ local function collect(which)
         collectNormal()
     elseif which == "golden" then
         collectGolden()
-    elseif which == "all" then
-        collectNormal(true)
     end
 end
 
 ---------button
-mainTab:CreateSection("Gifts  (LAGGY ON HIGHER LEVELS)")
-mainTab:CreateButton({
-    Name = "Collect ALL Gifts",
-    Callback = function()
-        collect("all")
-    end
+mainTab:CreateSection("Gifts")
+mainTab:CreateParagraph({
+    Title = "NOTE",
+    Content = "Currently, finding gifts are slow. Spam the Collect Normal and Golden Gifts button to start collecting."
 })
 mainTab:CreateButton({
     Name = "Collect Normal Gifts",
@@ -849,13 +866,13 @@ mainTab:CreateButton({
         collect("golden")
     end
 })
-local ga = mainTab:CreateToggle({
-    Name = "Collect Aura (LAGGY ON HIGHER LEVELS)",
-    CurrentValue = aura,
-    Callback = function(Value)
-        aura = Value
-    end
-})
+-- local ga = mainTab:CreateToggle({
+--     Name = "Collect Aura (LAGGY ON HIGHER LEVELS)",
+--     CurrentValue = aura,
+--     Callback = function(Value)
+--         aura = Value
+--     end
+-- })
 
 mainTab:CreateSection("Enemies")
 local selectedEnemies = {}
@@ -1238,7 +1255,7 @@ visualTab:CreateButton({
 
 visualTab:CreateSection("ESP")
 local cge = visualTab:CreateToggle({
-    Name = "Closest Gift Tracer ESP  (LAGGY ON HIGHER LEVELS)",
+    Name = "Closest Gift Tracer ESP (LAGGY)",
     CurrentValue = cesp,
     Callback = function(Value)
         cesp = Value
@@ -1262,9 +1279,9 @@ local iet = visualTab:CreateToggle({
 visualTab:CreateSection("Camera")
 local fov = visualTab:CreateSlider({
     Name = "FOV",
-    Range = {20, 120},
+    Range = {1, 120},
     Increment = 1,
-    CurrentValue = 70,
+    CurrentValue = Camera.FieldOfView,
     Callback = function(Value)
         Camera.FieldOfView = Value
     end
@@ -1281,15 +1298,6 @@ local tvelov = visualTab:CreateToggle({
 
 ----------------key
 
-keyTab:CreateKeybind({
-    Name = "Collect All Gifts",
-    CurrentKeybind = "P",
-    HoldToInteract = false,
-    Callback = function(key)
-        if not canEzCollectAll then return end
-        collect("all")
-    end
-})
 keyTab:CreateKeybind({
     Name = "Disable All Enemies",
     CurrentKeybind = "H",
@@ -1365,30 +1373,23 @@ keyTab:CreateKeybind({
         hitbox.Position = pos
     end
 })
-keyTab:CreateKeybind({
-    Name = "Toggle Collect Aura",
-    CurrentKeybind = "Insert",
-    HoldToInteract = false,
-    Callback = function()
-        if not canToggleAura then return end
-        if aura then
-            ga:Set(false)  
-            notif("Collect Aura Off.")
-        else
-            ga:Set(true)
-            notif("Collect Aura On.")
-        end
-    end
-})
+-- keyTab:CreateKeybind({
+--     Name = "Toggle Collect Aura",
+--     CurrentKeybind = "Insert",
+--     HoldToInteract = false,
+--     Callback = function()
+--         if not canToggleAura then return end
+--         if aura then
+--             ga:Set(false)  
+--             notif("Collect Aura Off.")
+--         else
+--             ga:Set(true)
+--             notif("Collect Aura On.")
+--         end
+--     end
+-- })
 
 keyTab:CreateSection("Enable Keybinds")
-keyTab:CreateToggle({
-    Name = "Collect All Gifts Keybind",
-    CurrentValue = canEzCollectAll,
-    Callback = function(Value)
-        canEzCollectAll = Value
-    end
-})
 keyTab:CreateToggle({
     Name = "Disable All Enemies Keybind",
     CurrentValue = canEzDisableAll,
@@ -1417,13 +1418,13 @@ keyTab:CreateToggle({
         canGoHome = Value
     end
 })
-keyTab:CreateToggle({
-    Name = "Toggle Collect Aura Keybind",
-    CurrentValue = canToggleAura,
-    Callback = function(Value)
-        canToggleAura = Value
-    end
-})
+-- keyTab:CreateToggle({
+--     Name = "Toggle Collect Aura Keybind",
+--     CurrentValue = canToggleAura,
+--     Callback = function(Value)
+--         canToggleAura = Value
+--     end
+-- })
 
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-- debug
 debugTab:CreateButton({
@@ -1489,23 +1490,27 @@ local runLoop = RunService.Heartbeat:Connect(function()
     local root, hitbox = getRoot(char)
     local h = getHuman(char)
 
-    local auranow = tick()
-    if aura and auranow - lastAura > auraRATE then
-        lastAura = auranow
+    -- local auranow = tick()
+    -- if aura and auranow - lastAura > auraRATE then
+    --     lastAura = auranow
 
-        if #availableNormalGifts == 0 then
-            giftSelection = availableGoldenGifts
-        elseif #availableGoldenGifts == 0 then
-            giftSelection = availableNormalGifts
-        end
+    --     if #availableNormalGifts == 0 then
+    --         giftSelection = availableGoldenGifts
+    --     elseif #availableGoldenGifts == 0 then
+    --         giftSelection = availableNormalGifts
+    --     end
 
-        local newClose = getClosestGift(giftSelection)
+    --     local newClose = getClosestGift(giftSelection)
 
-        if newClose then
-            loopClosest = newClose
-            collectGift:FireServer(loopClosest)
-        end
-    end
+    --     if newClose then
+    --         local dist = (root.Position - newClose.Position).Magnitude
+
+    --         if dist <= 7.5 then
+    --             loopClosest = newClose
+    --             collectGift:FireServer(loopClosest)
+    --         end
+    --     end
+    -- end
 
     if visibleHitbox then
         if root and hitbox then
@@ -1523,9 +1528,10 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
 
     if av then
-        if root and root.Position.Y <= -550 then
+        local pos = spawnPart.Position + Vector3.new(0,4,0)
+
+        if root and root.Position.Y <= workspace.KillVoid.Position.Y + 50 then
             if antiVoidSelection == 1 then
-                local pos = spawnPart.Position + Vector3.new(0,4,0)
                 root.Position = pos
             elseif antiVoidSelection == 2 then
                 local alv = root.AssemblyLinearVelocity
@@ -1534,12 +1540,10 @@ local runLoop = RunService.Heartbeat:Connect(function()
                 local availableGifts = availableNormalGifts
                 if #availableGifts == 0 then availableGifts = availableGoldenGifts end
                 local gift = getClosestGift(availableGifts)
-
                 if gift then
                     root.Position = gift.Position
                 else
-                    antiVoidSelection = 1
-                    avs:Set({"1. Teleport to Spawn"})
+                    root.Position = pos
                     notif("No gift! Automatically doing Teleport to Spawn", "Anti Void")
                 end
             end
@@ -1549,7 +1553,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
     if root and hitbox then
         hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
-        if root.Position.Y <= -610.5 and h.Health > 0 then
+        if h and root.Position.Y <= workspace.KillVoid.Position.Y and h.Health > 0 then
             h:ChangeState(Enum.HumanoidStateType.Dead)
         end
 
@@ -1731,11 +1735,9 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
             closestGiftTracer.To = to
         else
             closestGiftTracer.Visible = false
-			if cgb then cgb.Transparency = 1 end
         end
     else
         closestGiftTracer.Visible = false
-		if cgb then cgb.Transparency = 1 end
     end
 end)
 
@@ -1799,9 +1801,6 @@ function destroyGui()
     iet:Set(false)
     print("instrument esp off")
 
-    fov:Set(70)
-    print("reset fov")
-
     tvelov:Set(false)
     velocityPart:Destroy()
     print("velocity visualizer off and destroyed")
@@ -1814,6 +1813,9 @@ function destroyGui()
 
     ni:Set(false)
     print("no ice off")
+
+    tweening = false
+    print("stopped tweening")
 
     print("destroying rayfield...")
     task.wait(.2)
