@@ -77,6 +77,8 @@ local canToggleAura = true
 local canGoHome = true
 local canEzDisableAll = true
 local canEzDisableAllC = true
+local canEzCollectNormal = true
+local canEzCollectGolden = true
 local av = false
 local noice = false
 local instrumentesp = false
@@ -1297,7 +1299,24 @@ local tvelov = visualTab:CreateToggle({
 })
 
 ----------------key
-
+keyTab:CreateKeybind({
+    Name = "Collect Normal Gifts",
+    CurrentKeybind = "Nine",
+    HoldToInteract = false,
+    Callback = function(key)
+        if not canEzCollectNormal then return end
+        collect("normal")
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Collect Golden Gifts",
+    CurrentKeybind = "Zero",
+    HoldToInteract = false,
+    Callback = function(key)
+        if not canEzCollectGolden then return end
+        collect("golden")
+    end
+})
 keyTab:CreateKeybind({
     Name = "Disable All Enemies",
     CurrentKeybind = "H",
@@ -1390,6 +1409,20 @@ keyTab:CreateKeybind({
 -- })
 
 keyTab:CreateSection("Enable Keybinds")
+keyTab:CreateToggle({
+    Name = "Collect Normal Gifts Keybind",
+    CurrentValue = canEzCollectNormal,
+    Callback = function(Value)
+        canEzCollectNormal = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Collect Golden Gifts Keybind",
+    CurrentValue = canEzCollectGolden,
+    Callback = function(Value)
+        canEzCollectGolden = Value
+    end
+})
 keyTab:CreateToggle({
     Name = "Disable All Enemies Keybind",
     CurrentValue = canEzDisableAll,
