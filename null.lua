@@ -167,7 +167,7 @@ local greaterBalanceLevels = {
 local clientenemies = {
     "Kolona",
     "Voidbreaker",
-    "Husk",
+    "Skinwalker",
     "Operator",
 }
 
@@ -269,7 +269,6 @@ local function checkIntermissionType()
         end
     end
 
-    print(currentType)
     return currentType
 end
 
@@ -305,7 +304,6 @@ local function getClosestAnyGift()
 
     check(availableNormalGifts)
     check(availableGoldenGifts)
-    print(closest)
 
     return closest
 end
@@ -597,28 +595,19 @@ local function findBestSelection()
 
         if intermission == "ENEMIES" then
             local val = dangerlevels[name]
-            print(val)
-            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
-                print("yes")
                 bestchoice = choice
                 danger = val
             end
         elseif intermission == "CURSES" then
             local val = balancelevels[name]
-            print(val)
-            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
-                print("yes")
                 bestchoice = choice
                 danger = val
             end
         elseif intermission == "GREATER CURSES" then
             local val = greaterBalanceLevels[name]
-            print(val)
-            print("is "..tostring(val).." less than "..danger.."?")
             if val and val < danger then
-                print("yes")
                 bestchoice = choice
                 danger = val
             end
@@ -775,7 +764,6 @@ local function GetClosestPad()
         end
 
         if visible then
-            print("it's visible. dist:",mag)
             dist = mag
             closest = part
         end
@@ -805,7 +793,6 @@ local function collect(which)
                 print("golden gifts", "| gift not found")
                 break
             end
-            print("found:", gift)
 
             local tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
@@ -832,7 +819,6 @@ local function collect(which)
                 print("normal gifts", "| gift not found")
                 break
             end
-            print("found:", gift, gift.Transparency)
 
             local tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
@@ -933,7 +919,6 @@ local function disableAll(willDestroy: boolean, client: boolean)
     if client then
         for _, enemy in clientenemies do
             if not enemies:FindFirstChild(enemy) then continue end
-            print("disabling client:", enemy)
             disableEnemy(enemy, willDestroy)
         end
 
@@ -1347,18 +1332,14 @@ keyTab:CreateKeybind({
         local sendingEvent = false
 
         if canPress then
-            print("can press, now disabling...")
             canPress = false
             local target = GetClosestPad()
             if not target then
-                print("no target")
                 canPress = true
                 return
             end
             local cf = CFrame.new(Camera.CFrame.Position, target.Position)
-            print("setting camera cframe:", cf)
             Camera.CFrame = cf
-            print("sending key event")
             sendingEvent = true
             task.spawn(function()
                 while sendingEvent do
@@ -1368,12 +1349,10 @@ keyTab:CreateKeybind({
                 end
             end)
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-            print("unsending key event")
             task.wait(0.01)
             sendingEvent = false
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
             
-            print("enable pressing")
             task.delay(0.05, function()
                 canPress = true
             end)
