@@ -996,6 +996,7 @@ auto_disable.Skinwalker = false
 auto_disable.Springer = false
 auto_disable.Baby = false
 auto_disable.Flesh = false
+auto_disable.nilEnemy = false
 auto_disable.Telefragger = false
 auto_disable.ShadowBaby = false
 auto_disable.Cadence = false
@@ -1010,6 +1011,7 @@ auto_destroy.Baby = false
 auto_destroy.Flesh = false
 auto_destroy.Operator = false
 auto_destroy.Kolona = false
+auto_destroy.nilEnemy = false
 auto_destroy.Telefragger = false
 auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
@@ -1216,6 +1218,30 @@ enemyTab:CreateToggle({
         local Kolona = enemies:FindFirstChild("Kolona") 
         if Kolona then
             handleEnemy(Kolona)
+        end
+    end
+})
+
+enemyTab:CreateSection("Nil")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.nilEnemy,
+    Callback = function(v)
+        auto_disable.nilEnemy = v
+        local nilEnemy = enemies:FindFirstChild("nilEnemy") 
+        if nilEnemy then
+            handleEnemy(nilEnemy)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.nilEnemy,
+    Callback = function(v)
+        auto_destroy.nilEnemy = v
+        local nilEnemy = enemies:FindFirstChild("nilEnemy") 
+        if nilEnemy then
+            handleEnemy(nilEnemy)
         end
     end
 })
