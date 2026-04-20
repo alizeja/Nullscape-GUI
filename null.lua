@@ -86,7 +86,7 @@ local pt = false
 local velov = false
 local connections = {}
 
-local dangerlevels = {
+local dangerlevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
     Bell = 0.5,
     Mart = 0.75,
     Springer = 1.2,
@@ -197,6 +197,7 @@ function notif(text: string, title: string, dur: number)
 end
 
 local mainTab = Window:CreateTab("Main")
+local enemyTab = Window:CreateTab("Enemy")
 local mapTab = Window:CreateTab("Map")
 local plrTab = Window:CreateTab("Player")
 local visualTab = Window:CreateTab("Visual")
@@ -667,31 +668,32 @@ local function disableEnemy(enemyName, willDestroy)
         end
 
         notif(name.." disabled. (destroyed)")
+        return true
     end
 
     local disableFunction = {
         Basic = function(name, willDestroy)
             if willDestroy then
-                destroyEnemy(name)
-                return
+                return destroyEnemy(name)
             end
             local n = loopEnemies(name, "TouchInterest")
 
             if n > 0 then
                 notif(tostring(n).." "..name.."(s) disabled.")
+                return true
             else
                 notif(name.." cannot be disabled, or already disabled.")
+                return false
             end
         end,
         Skinwalker = function(name, willDestroy)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
                 notif("Husk isn't following you yet.")
-                return
+                return false
             end
             if willDestroy then
-                destroyEnemy(name, skinwalkers)
-                return
+                return destroyEnemy(name, skinwalkers)
             end
 
             local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
@@ -700,31 +702,46 @@ local function disableEnemy(enemyName, willDestroy)
 
             if n > 0 then
                 notif(tostring(n).." Husk(s) disabled.")
+                return true
             else
                 notif("Husks are already disabled.")
+                return true
             end
         end,
         Springer = function(name, willDestroy)
-            destroyEnemy(name)
+            if not willDestroy then
+                loopEnemies(name, "SpringerShockwave")
+                n = loopEnemies(name, "DemonShockwave")
+
+                if n > 0 then
+                    notif(tostring(n).." Springer(s) disabled.")
+                    return true
+                else
+                    notif("No Springers left to disable.")
+                    return true
+                end
+            else
+                return destroyEnemy(name)
+            end
         end,
         Kolona = function(name, willDestroy)
-           destroyEnemy(name)
+           return destroyEnemy(name)
         end,
         Operator = function(name, willDestroy)
-           destroyEnemy(name)
+           return destroyEnemy(name)
         end,
         Voidbreaker = function(name, willDestroy)
-           destroyEnemy(name)
+           return destroyEnemy(name)
         end,
         ICBM = function(name, willDestroy)
-            destroyEnemy(name)
+            return destroyEnemy(name)
         end
     }
 
     if disableFunction[enemyName] then
-        disableFunction[enemyName](enemyName, willDestroy)
+        return disableFunction[enemyName](enemyName, willDestroy)
     else
-        disableFunction.Basic(enemyName, willDestroy)
+        return disableFunction.Basic(enemyName, willDestroy)
     end
 end
 
@@ -862,10 +879,19 @@ mainTab:CreateButton({
 --     end
 -- })
 
-mainTab:CreateSection("Enemies")
+mainTab:CreateSection("Intermission")
+
+mainTab:CreateButton({
+    Name = "Find Best Choice (BIAS)",
+    Callback = function()
+        notif(tostring(findBestSelection()), "Best Choice:")
+    end
+})
+
+enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 local selectedEnemies = {}
 
-local selectEnemies = mainTab:CreateDropdown({
+local selectEnemies = enemyTab:CreateDropdown({
    Name = "Select Enemy",
    Options = {},
    CurrentOption = {},
@@ -930,45 +956,376 @@ local function disableAll(willDestroy: boolean, client: boolean)
     end
 end
 
-mainTab:CreateButton({
+enemyTab:CreateButton({
     Name = "Disable Client-sided Enemies Only",
     Callback = function()
         disableAll(false, true)
     end
 })
-mainTab:CreateButton({
+enemyTab:CreateButton({
     Name = "Disable Selected Enemies",
     Callback = function()
         disableSelected()
     end
 })
-mainTab:CreateButton({
+enemyTab:CreateButton({
     Name = "Disable All",
     Callback = function()
         disableAll()
     end
 })
-mainTab:CreateButton({
+enemyTab:CreateButton({
     Name = "Destroy Selected Enemies",
     Callback = function()
         disableSelected(true)
     end
 })
-mainTab:CreateButton({
+enemyTab:CreateButton({
     Name = "Destroy All",
     Callback = function()
         disableAll(true)
     end
 })
+enemyTab:CreateDivider()
 
-mainTab:CreateSection("Intermission")
 
-mainTab:CreateButton({
-    Name = "Find Best Choice (BIAS)",
-    Callback = function()
-        notif(tostring(findBestSelection()), "Best Choice:")
+local auto_disable = {}
+auto_disable.Bell = false
+auto_disable.Mart = false
+auto_disable.Skinwalker = false
+auto_disable.Springer = false
+auto_disable.Baby = false
+auto_disable.Flesh = false
+auto_disable.Telefragger = false
+auto_disable.ShadowBaby = false
+auto_disable.Cadence = false
+
+local auto_destroy = {}
+auto_destroy.Bell = false
+auto_destroy.Mart = false
+auto_destroy.Skinwalker = false
+auto_destroy.Springer = false
+auto_destroy.ICBM = false
+auto_destroy.Baby = false
+auto_destroy.Flesh = false
+auto_destroy.Operator = false
+auto_destroy.Kolona = false
+auto_destroy.Telefragger = false
+auto_destroy.ShadowBaby = false
+auto_destroy.Voidbreaker = false
+auto_destroy.Cadence = false
+
+local function handleEnemy(enemy)
+    local name = enemy.Name
+
+    if auto_destroy[name] then
+        local start = tick()
+        repeat
+            task.wait(1)
+            if tick() - start >= 3 then break end
+        until disableEnemy(name, true) == true
+    elseif auto_disable[name] then
+        local start = tick()
+        repeat
+            task.wait(1)
+            if tick() - start >= 3 then break end
+        until disableEnemy(name, false) == true
+    end
+end
+
+
+enemyTab:CreateSection("Bell")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Bell,
+    Callback = function(v)
+        auto_disable.Bell = v
+        local bell = enemies:FindFirstChild("Bell") 
+        if bell then
+            handleEnemy(bell)
+        end
     end
 })
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Bell,
+    Callback = function(v)
+        auto_destroy.Bell = v
+        local bell = enemies:FindFirstChild("Bell") 
+        if bell then
+            handleEnemy(bell)
+        end
+    end
+})
+
+enemyTab:CreateSection("Mart")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Mart,
+    Callback = function(v)
+        auto_disable.Mart = v
+        local mart = enemies:FindFirstChild("Mart") 
+        if mart then
+            handleEnemy(mart)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Mart,
+    Callback = function(v)
+        auto_destroy.Mart = v
+        local mart = enemies:FindFirstChild("Mart") 
+        if mart then
+            handleEnemy(mart)
+        end
+    end
+})
+
+enemyTab:CreateSection("Husk")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Skinwalker,
+    Callback = function(v)
+        auto_disable.Skinwalker = v
+        local husk = enemies:FindFirstChild("Skinwalker") 
+        if husk then
+            handleEnemy(husk)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Skinwalker,
+    Callback = function(v)
+        auto_destroy.Skinwalker = v
+        local husk = enemies:FindFirstChild("Skinwalker") 
+        if husk then
+            handleEnemy(husk)
+        end
+    end
+})
+
+enemyTab:CreateSection("Springer")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Springer,
+    Callback = function(v)
+        auto_disable.Springer = v
+        local springer = enemies:FindFirstChild("Springer") 
+        if springer then
+            handleEnemy(springer)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Springer,
+    Callback = function(v)
+        auto_destroy.Springer = v
+        local springer = enemies:FindFirstChild("Springer") 
+        if springer then
+            handleEnemy(springer)
+        end
+    end
+})
+
+enemyTab:CreateSection("ICBM")
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.ICBM,
+    Callback = function(v)
+        auto_destroy.ICBM = v
+        local icbm = enemies:FindFirstChild("ICBM") 
+        if icbm then
+            handleEnemy(icbm)
+        end
+    end
+})
+
+enemyTab:CreateSection("Baby")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Baby,
+    Callback = function(v)
+        auto_disable.Baby = v
+        local baby = enemies:FindFirstChild("Baby") 
+        if baby then
+            handleEnemy(baby)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Baby,
+    Callback = function(v)
+        auto_destroy.Baby = v
+        local baby = enemies:FindFirstChild("Baby") 
+        if baby then
+            handleEnemy(baby)
+        end
+    end
+})
+
+enemyTab:CreateSection("Flesh")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Flesh,
+    Callback = function(v)
+        auto_disable.Flesh = v
+        local flesh = enemies:FindFirstChild("Flesh") 
+        if flesh then
+            handleEnemy(flesh)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Flesh,
+    Callback = function(v)
+        auto_destroy.Flesh = v
+        local flesh = enemies:FindFirstChild("Flesh") 
+        if flesh then
+            handleEnemy(flesh)
+        end
+    end
+})
+
+enemyTab:CreateSection("Guardian")
+enemyTab:CreateLabel("Cannot be disabled.")
+
+enemyTab:CreateSection("Operator")
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Operator,
+    Callback = function(v)
+        auto_destroy.Operator = v
+        local Operator = enemies:FindFirstChild("Operator") 
+        if Operator then
+            handleEnemy(Operator)
+        end
+    end
+})
+
+enemyTab:CreateSection("Kolona")
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Kolona,
+    Callback = function(v)
+        auto_destroy.Kolona = v
+        local Kolona = enemies:FindFirstChild("Kolona") 
+        if Kolona then
+            handleEnemy(Kolona)
+        end
+    end
+})
+
+enemyTab:CreateSection("Telefragger")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Telefragger,
+    Callback = function(v)
+        auto_disable.Telefragger = v
+        local Telefragger = enemies:FindFirstChild("Telefragger") 
+        if Telefragger then
+            handleEnemy(Telefragger)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Telefragger,
+    Callback = function(v)
+        auto_destroy.Telefragger = v
+        local Telefragger = enemies:FindFirstChild("Telefragger") 
+        if Telefragger then
+            handleEnemy(Telefragger)
+        end
+    end
+})
+
+enemyTab:CreateSection("Voidbound Guardian")
+enemyTab:CreateLabel("Cannot be disabled.")
+
+enemyTab:CreateSection("Voidbound Baby")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.ShadowBaby,
+    Callback = function(v)
+        auto_disable.ShadowBaby = v
+        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
+        if ShadowBaby then
+            handleEnemy(ShadowBaby)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.ShadowBaby,
+    Callback = function(v)
+        auto_destroy.ShadowBaby = v
+        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
+        if ShadowBaby then
+            handleEnemy(ShadowBaby)
+        end
+    end
+})
+
+enemyTab:CreateSection("Voidbreaker")
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Voidbreaker,
+    Callback = function(v)
+        auto_destroy.Voidbreaker = v
+        local Voidbreaker = enemies:FindFirstChild("Voidbreaker") 
+        if Voidbreaker then
+            handleEnemy(Voidbreaker)
+        end
+    end
+})
+
+enemyTab:CreateSection("Cadence")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Cadence,
+    Callback = function(v)
+        auto_disable.Cadence = v
+        local Cadence = enemies:FindFirstChild("Cadence") 
+        if Cadence then
+            handleEnemy(Cadence)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Cadence,
+    Callback = function(v)
+        auto_destroy.Cadence = v
+        local Cadence = enemies:FindFirstChild("Cadence") 
+        if Cadence then
+            handleEnemy(Cadence)
+        end
+    end
+})
+
+enemyTab:CreateSection("ที่ပွ၊ יפהပ္כ아כב אפלအך") ---------just for fun
+enemyTab:CreateToggle({
+    Name = "???",
+    CurrentValue = false,
+    Callback = function()
+        notif("למה לבזבז את כל הזמן הזה באור? תהיה איתי בחושך.", "Catalyst")
+        warn("חוֹשֶׁך")
+    end
+})
+enemyTab:CreateToggle({
+    Name = "???",
+    CurrentValue = false,
+    Callback = function()
+        notif("יום. פרח, פרחים רבים. שיחקתי בשדה של פרחים. עטוף בחשכה. ביכיתי. אבל החשכה הסתירה את דמעותיי. למדתי. זה לימד אותי. החשכה לא הייתה חבר שלי. עטוף באור השמים. כסה אותי מהחשך שמתחת. אני לא רוצה שזה יפגע בי שוב.", "Catalyst")
+        warn("חוֹשֶׁך")
+    end
+})
+
 --------------map
 
 mapTab:CreateSection("Void")
@@ -1478,7 +1835,19 @@ debugTab:CreateButton({
 
 ---------connections!
 
-local eca = enemies.ChildAdded:Connect(updateEnemySelection)
+for _, enemy in ipairs(enemies:GetChildren()) do
+    task.spawn(handleEnemy, enemy)
+end
+local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
+    enemy.Name = "Skinwalker"
+
+    handleEnemy(enemy)
+end)
+table.insert(connections, skwca)
+local eca = enemies.ChildAdded:Connect(function(enemy)
+    updateEnemySelection()
+    handleEnemy(enemy)
+end)
 table.insert(connections, eca)
 local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
 table.insert(connections, ecr)
@@ -1753,8 +2122,7 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
     end
 end)
 
-
-RunService:BindToRenderStep("Tripmine", Enum.RenderPriority.Last.Value + 1, function()
+RunService:BindToRenderStep("Tripmine", Enum.RenderPriority.Last.Value + 2, function()
     if pt then
         for _, trip in getActiveTripmines() do
             if trip.Transparency ~= 1 then
