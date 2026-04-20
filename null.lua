@@ -1154,7 +1154,7 @@ enemyTab:CreateToggle({
         auto_disable.Baby = v
         local baby = enemies:FindFirstChild("Baby") 
         if baby then
-            handleEnemy(baby)
+            handleEnemy(baby, 6)
         end
     end
 })
@@ -1165,7 +1165,7 @@ enemyTab:CreateToggle({
         auto_destroy.Baby = v
         local baby = enemies:FindFirstChild("Baby") 
         if baby then
-            handleEnemy(baby)
+            handleEnemy(baby, 6)
         end
     end
 })
@@ -1178,7 +1178,7 @@ enemyTab:CreateToggle({
         auto_disable.Flesh = v
         local flesh = enemies:FindFirstChild("Flesh") 
         if flesh then
-            handleEnemy(flesh)
+            handleEnemy(flesh, 5)
         end
     end
 })
@@ -1189,7 +1189,7 @@ enemyTab:CreateToggle({
         auto_destroy.Flesh = v
         local flesh = enemies:FindFirstChild("Flesh") 
         if flesh then
-            handleEnemy(flesh)
+            handleEnemy(flesh, 5)
         end
     end
 })
@@ -1231,7 +1231,7 @@ enemyTab:CreateToggle({
         auto_disable.nilEnemy = v
         local nilEnemy = enemies:FindFirstChild("nilEnemy") 
         if nilEnemy then
-            handleEnemy(nilEnemy)
+            handleEnemy(nilEnemy, 6)
         end
     end
 })
@@ -1242,7 +1242,7 @@ enemyTab:CreateToggle({
         auto_destroy.nilEnemy = v
         local nilEnemy = enemies:FindFirstChild("nilEnemy") 
         if nilEnemy then
-            handleEnemy(nilEnemy)
+            handleEnemy(nilEnemy, 6)
         end
     end
 })
