@@ -1017,20 +1017,21 @@ auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
 
-local function handleEnemy(enemy)
+local function handleEnemy(enemy, waitingTime)
+	waitingTime = waitingTime or 3
     local name = enemy.Name
 
     if auto_destroy[name] then
         local start = tick()
         repeat
             task.wait(1)
-            if tick() - start >= 3 then break end
+            if tick() - start >= waitingTime then break end
         until disableEnemy(name, true) == true
     elseif auto_disable[name] then
         local start = tick()
         repeat
             task.wait(1)
-            if tick() - start >= 3 then break end
+            if tick() - start >= waitingTime then break end
         until disableEnemy(name, false) == true
     end
 end
