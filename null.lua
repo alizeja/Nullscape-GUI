@@ -1551,7 +1551,7 @@ local tpt = mapTab:CreateToggle({
 })
 local dfca
 local nvi = mapTab:CreateToggle({
-    Name = "Disable Void Implosions",
+    Name = "Disable Void Implosions (LAGGY)",
     CurrentValue = dvi,
     Callback = function(Value)
         dvi = Value
