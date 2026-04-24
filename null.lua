@@ -39,6 +39,7 @@ local items = workspace.Item_Pools
 local gifts = items.NormalGifts
 local goldengifts = items.GoldenGifts
 local tripmines = items.Tripmines
+local goldentripmines = items.GoldTripmines
 local enemies = workspace.Enemies
 local giftEsp = workspace.Showlocation
 local tripEsp = workspace.TripmineShowlocation
@@ -47,6 +48,12 @@ local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 local pads = workspace.JumpPads
 local code = ReplicatedStorage.CodeVal
+local curses = ReplicatedStorage.CurseFolder.Curses
+local gcurses = ReplicatedStorage.GreaterCurseFolder.Curses
+local upgrades = ReplicatedStorage.UpgradeFolder.Upgrades
+local beacons = workspace.Beacons
+local destroyFolder = workspace.DestroyFolder
+
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -71,6 +78,7 @@ vpBox.Parent = velocityPart
 local tweening = false
 local aura = false
 local cesp = false
+local mesp = false
 local visibleHitbox = false
 local canInstaGrapple = false
 local canToggleAura = true
@@ -79,91 +87,17 @@ local canEzDisableAll = true
 local canEzDisableAllC = true
 local canEzCollectNormal = true
 local canEzCollectGolden = true
+local canEzCollectMedal = true
 local av = false
 local noice = false
 local instrumentesp = false
 local pt = false
+local dvi = false
+local dsm = false
 local velov = false
+local nrb = false
 local connections = {}
 
-local dangerlevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
-    Bell = 0.5,
-    Mart = 0.75,
-    Springer = 1.2,
-    Operator = 1.4,
-    ICBM = 1.7,
-    Nil = 1.9,
-    Flesh = 2,
-    Guardian = 2.1,
-    Kolona = 2.4,
-    Husk = 2.6,
-    ["Voidbound Guardian"] = 2.9,
-    Baby = 3,
-    Telefragger = 3.3,
-    ["Voidbound Baby"] = 3.5,
-    Voidbreaker = 3.6,
-    Cadence = 5
-}
-local balancelevels = { --THESE ARE EXTREMELY BIASED OR INACCURATE, PLEASE BEAR WITH ME
-    ["Further Husk"] = .6,
-    ["Savory Ring"] = .7,
-    Idiotware = .9,
-    ["Lower Gravity"] = 1,
-    ["Stairs... Stairs..."] = 1.2,
-    Camouflage = 1.4,
-    ["Random Spawn"] = 1.5,
-    ["Ice Tiles"] = 1.7,
-    ["Tweaked Odds"] = 1.8,
-    ["High Roller"] = 2.0,
-    Minefield = 2.1,
-    Barotrauma = 2.3,
-    ["Scattered Gifts"] = 2.4,
-    ["Fragile Gifts"] = 2.5,
-    ["Weaker Jumppads"] = 2.6,
-    ["Mart Infection"] = 2.7,
-    ["Bigger Blast"] = 2.8,
-    Shotgun = 2.9,
-    ["Closer Husk"] = 3,
-    ["Taller Husk"] = 3.1,
-    ["Bloodier Meat"] = 3.2,
-    ["Beacon Mirage"] = 3.3,
-    Cheeseware = 3.4,
-    ["Conga Line"] = 3.5,
-    ["Missile Silo"] = 3.6,
-    ["Mighty Chivalry"] = 3.7,
-    ["Random Husk"] = 3.8,
-    ["More Tripmines"] = 3.9,
-    ["Bigger Tripmines"] = 4,
-    Springloaded = 4.2,
-    ["Problem Child"] = 4.3,
-    Delusion = 4.6,
-    Pacifier = 4.8,
-    ["Fake Count"] = 5,
-    Crayonify = 5.1,
-    ["More Ringing"] = 5.4,
-    Telestabber = 5.6,
-    ["Mart Slide"] = 5.8,
-    ["[CONTENT REMOVED]"] = 6.2,
-    ["[REDACTED]"]= 6.4,
-    Tripnuke = 7,
-    ["LAP 2"] = 7.2,
-    ["Nothing?"] = 7.5
-}
-local greaterBalanceLevels = {
-    ["Trap Card"] = 1.6,
-    ["Void Implosions"] = 2.2,
-    Run = 2.4,
-    ["Hollow Tiles"] = 2.8,
-    Doombringer = 3,
-    ["One Less Choice"] = 3.1,
-    ["Blade Bombardment"] = 3.6,
-    ["Ballet of Blades"] = 3.8,
-    Rebirth = 4,
-    Muted = 4.2,
-    Sorrow = 4.4,
-    Tantrum = 5,
-    ["Inverse Destruction"] = 5.3
-}
 local clientenemies = {
     "Kolona",
     "Voidbreaker",
@@ -177,6 +111,7 @@ local availableNormalGifts = {}
 local availableGoldenGifts = {}
 local iceParts = {}
 local cgb
+local mb
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -275,9 +210,15 @@ end
 
 local closestGiftTracer = Drawing.new("Line")
 closestGiftTracer.Visible = false
-closestGiftTracer.Thickness = 3
-closestGiftTracer.Color = Color3.new(1, 1, 0) -- yellow
+closestGiftTracer.Thickness = 2
+closestGiftTracer.Color = Color3.new(1, 1, 0)
 closestGiftTracer.Transparency = 1
+
+local medalTracer = Drawing.new("Line")
+medalTracer.Visible = false
+medalTracer.Thickness = 2
+medalTracer.Color = Color3.new(0.75, 0.75, 0.75)
+medalTracer.Transparency = 1
 
 local function getClosestAnyGift()
     local char = getChar(plr)
@@ -423,6 +364,11 @@ end
 local function getActiveTripmines()
     local active = {}
     for _, mine in tripmines:GetChildren() do
+        if mine.Transparency ~= 1 then
+            table.insert(active, mine)
+        end
+    end
+    for _, mine in goldentripmines:GetChildren() do
         if mine.Transparency ~= 1 then
             table.insert(active, mine)
         end
@@ -576,51 +522,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     return tween
 end
 
-local function findBestSelection()
-    local selection = selection or workspace:FindFirstChild("Select")
-    if not selection then return end
 
-    local intermission = checkIntermissionType()
-
-    local bestchoice
-    local danger = math.huge
-
-    for _, choice in selection:GetChildren() do
-        if choice.Name == "Reroll" or choice.Name == "Sign" then continue end
-
-        local prompt = choice:FindFirstChildOfClass("ProximityPrompt")
-        if not prompt then continue end
-
-        local name = prompt.ActionText
-        if not name then continue end
-
-        if intermission == "ENEMIES" then
-            local val = dangerlevels[name]
-            if val and val < danger then
-                bestchoice = choice
-                danger = val
-            end
-        elseif intermission == "CURSES" then
-            local val = balancelevels[name]
-            if val and val < danger then
-                bestchoice = choice
-                danger = val
-            end
-        elseif intermission == "GREATER CURSES" then
-            local val = greaterBalanceLevels[name]
-            if val and val < danger then
-                bestchoice = choice
-                danger = val
-            end
-        elseif intermission == "UPGRADES" then
-            return "It is your choice."
-        end
-    end
-
-    if bestchoice then
-        return bestchoice.ProximityPrompt.ActionText
-    end
-end
 
 local function getAltarPrompts()
     local prompts = {}
@@ -636,10 +538,17 @@ local function getAltarPrompts()
     return prompts
 end
 
-local function disableEnemy(enemyName, willDestroy)
+local function disableEnemy(enemyName, willDestroy, failNotif)
+    if failNotif == nil then
+        failNotif = true
+    end
+    
     local function loopEnemies(name, remove, list)
         list = list or enemies
+        remove = remove or "TouchInterest"
         local n = 0
+
+        local enemiesFound = {}
 
         for _, sameenemy in list:GetChildren() do
             if sameenemy.Name ~= name then continue end
@@ -654,9 +563,11 @@ local function disableEnemy(enemyName, willDestroy)
                     sameenemy:AddTag(".Disabled")
                 end
             end
+
+            table.insert(enemiesFound, sameenemy)
         end
 
-        return n
+        return n, enemiesFound
     end
     local function destroyEnemy(name, list)
         list = list or enemies
@@ -667,7 +578,7 @@ local function disableEnemy(enemyName, willDestroy)
             end
         end
 
-        notif(name.." disabled. (destroyed)")
+        notif(name.." disabled. (destroyed)", "Enemy")
         return true
     end
 
@@ -676,20 +587,60 @@ local function disableEnemy(enemyName, willDestroy)
             if willDestroy then
                 return destroyEnemy(name)
             end
-            local n = loopEnemies(name, "TouchInterest")
+            local n, enemiesFound = loopEnemies(name)
 
             if n > 0 then
-                notif(tostring(n).." "..name.."(s) disabled.")
+                notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
+
+                for _, e in pairs(enemiesFound) do
+                    local clientScript = e:FindFirstChild(name.."_ClientAI")
+                    
+                    if clientScript then
+                        clientScript.Enabled = false
+                    end
+                end
+
                 return true
             else
-                notif(name.." cannot be disabled, or already disabled.")
+                if failNotif == true then
+                    print(failNotif)
+                    notif(name.." cannot be disabled, or already disabled.", "Enemy")
+                end
                 return false
             end
+        end,
+        Bell = function(name, willDestroy)
+            if willDestroy then
+                return destroyEnemy(name)
+            end
+            local n, enemiesFound = loopEnemies(name)
+
+            if n > 0 then
+                notif(tostring(n).." Bell(s) disabled.", "Enemy")
+
+                for _, b in pairs(enemiesFound) do
+                    local clientScript = b:FindFirstChild(name.."_ClientAI")
+                    
+                    if clientScript then
+                        clientScript.Enabled = false
+                    end
+                end
+
+                return true
+            else
+                if failNotif == true then
+                    notif("Bell cannot be disabled, or already disabled.", "Enemy")
+                end
+                return false
+            end
+
         end,
         Skinwalker = function(name, willDestroy)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
-                notif("Husk isn't following you yet.")
+                if failNotif then
+                    notif("Husk isn't following you yet.", "Enemy")
+                end
                 return false
             end
             if willDestroy then
@@ -701,23 +652,63 @@ local function disableEnemy(enemyName, willDestroy)
             n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
 
             if n > 0 then
-                notif(tostring(n).." Husk(s) disabled.")
+                notif(tostring(n).." Husk(s) disabled.", "Enemy")
                 return true
             else
-                notif("Husks are already disabled.")
+                if failNotif == true then
+                    notif("Husks are already disabled.", "Enemy")
+                end
                 return true
             end
         end,
         Springer = function(name, willDestroy)
             if not willDestroy then
                 loopEnemies(name, "SpringerShockwave")
-                n = loopEnemies(name, "DemonShockwave")
+                local n, enemiesFound = loopEnemies(name, "DemonShockwave")
 
                 if n > 0 then
-                    notif(tostring(n).." Springer(s) disabled.")
+                    notif(tostring(n).." Springer(s) disabled.", "Enemy")
+
+                    for _, s in pairs(enemiesFound) do
+                        local clientScript = s:FindFirstChild("Springer_ClientAI")
+
+                        if clientScript then
+                            clientScript.Enabled = false
+                        end
+                    end
+
                     return true
                 else
-                    notif("No Springers left to disable.")
+                    if failNotif == true then
+                        notif("No Springers left to disable.", "Enemy")
+                    end
+                    return true
+                end
+            else
+                return destroyEnemy(name)
+            end
+        end,
+        ICBM = function(name, willDestroy)
+            if not willDestroy then
+                local _, enemiesFound = loopEnemies(name)
+
+                if #enemiesFound > 0 then
+                    local n = 0
+
+                    for _, s in pairs(enemiesFound) do
+                        local clientScript = s:FindFirstChild("ICBM_ClientAI")
+
+                        if clientScript and clientScript.Enabled == true then
+                            clientScript.Enabled = false
+                            n += 1
+                        end
+                    end
+
+                    if n > 0 then
+                        notif(tostring(n).." ICBM(s) disabled.", "Enemy")
+                    elseif failNotif == true then
+                        notif("No ICBMs left to disable.", "Enemy")
+                    end
                     return true
                 end
             else
@@ -732,9 +723,6 @@ local function disableEnemy(enemyName, willDestroy)
         end,
         Voidbreaker = function(name, willDestroy)
            return destroyEnemy(name)
-        end,
-        ICBM = function(name, willDestroy)
-            return destroyEnemy(name)
         end
     }
 
@@ -789,26 +777,46 @@ local function GetClosestPad()
     return closest
 end
 
+local function getSeamines()
+    local seamines = {}
+
+    for _, sm in pads:GetChildren() do
+        if sm.Name == "Seamine" then
+            table.insert(seamines, sm)
+        end
+    end
+
+    return seamines
+end
+
 ---------------------collection
 local function collect(which)
     local activeTripmines = getActiveTripmines()
 
     local function collectGolden()
-        if tweening then notif("Already collecting.") return end
+        if tweening then notif("Already collecting.", "Collection System") return end
         tweening = true
+        local startRefreshing
 
         while tweening do
             local char = getChar(plr)
             local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
-            refreshGifts(true, true)
+            if not startRefreshing then
+                refreshGifts(true, true)
+            elseif tick() - startRefreshing >= 15 then
+                startRefreshing = tick()
+                refreshGifts(true, true)
+            end
 
             local gift = getClosestGift(availableGoldenGifts)
             if not gift then
                 notif("no golden gifts, or currently finding golden gifts", "Gift Not Found")
-                print("golden gifts", "| gift not found")
                 break
+            end
+            if not startRefreshing then
+                startRefreshing = tick()
             end
 
             local tween = goTo(gift, activeTripmines, enemies:GetChildren())
@@ -820,21 +828,29 @@ local function collect(which)
     end
 
     local function collectNormal(getGoldenAfter)
-        if tweening then notif("Already collecting.") return end
+        if tweening then notif("Already collecting.", "Collection System") return end
         tweening = true
+        local startRefreshing
 
         while tweening do
             local char = getChar(plr)
             local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
 
-            refreshGifts(true)
+            if not startRefreshing then
+                refreshGifts(true, true)
+            elseif tick() - startRefreshing >= 15 then
+                startRefreshing = tick()
+                refreshGifts(true, true)
+            end
 
             local gift = getClosestGift(availableNormalGifts)
             if not gift then
                 notif("no gifts, or currently finding gifts", "Gift Not Found")
-                print("normal gifts", "| gift not found")
                 break
+            end
+            if not startRefreshing then
+                startRefreshing = tick()
             end
 
             local tween = goTo(gift, activeTripmines, enemies:GetChildren())
@@ -879,14 +895,6 @@ mainTab:CreateButton({
 --     end
 -- })
 
-mainTab:CreateSection("Intermission")
-
-mainTab:CreateButton({
-    Name = "Find Best Choice (BIAS)",
-    Callback = function()
-        notif(tostring(findBestSelection()), "Best Choice:")
-    end
-})
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 local selectedEnemies = {}
@@ -932,13 +940,13 @@ local function disableSelected(willDestroy: boolean)
             end)
         end
     else
-        notif("No Enemy Selected")
+        notif("No Enemy Selected", "Not found")
     end
 end
 local function disableAll(willDestroy: boolean, client: boolean)
     local allenemies = updateEnemySelection()
     if not allenemies or #allenemies == 0 then
-        notif("No enemies available.")
+        notif("No enemies available.", "Not found")
         return
     end
 
@@ -994,12 +1002,13 @@ auto_disable.Bell = false
 auto_disable.Mart = false
 auto_disable.Skinwalker = false
 auto_disable.Springer = false
+auto_disable.ICBM = false
 auto_disable.Baby = false
 auto_disable.Flesh = false
 auto_disable.nilEnemy = false
 auto_disable.Telefragger = false
 auto_disable.ShadowBaby = false
-auto_disable.Cadence = false
+auto_disable.Scrapmaw = false
 
 local auto_destroy = {}
 auto_destroy.Bell = false
@@ -1016,23 +1025,41 @@ auto_destroy.Telefragger = false
 auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
+auto_destroy.Scrapmaw = false
 
-local function handleEnemy(enemy, waitingTime)
-	waitingTime = waitingTime or 3
+local function handleEnemy(enemy)
     local name = enemy.Name
+    local waitingTime = 5
+
+    if name == "ICBM" then
+        waitingTime = 25
+    end
+    if name == "Springer" then
+        waitingTime = 10
+    end
 
     if auto_destroy[name] then
         local start = tick()
+        local didDestroy = disableEnemy(name, true, false)
+
         repeat
-            task.wait(1)
             if tick() - start >= waitingTime then break end
-        until disableEnemy(name, true) == true
+            didDestroy = disableEnemy(name, true, false)
+            task.wait(1)
+        until didDestroy == true
     elseif auto_disable[name] then
+        if name == "Mart" and curses:FindFirstChild("MartSlide") then
+            notif("Destroy Mart instead of disabling.", "MART SLIDE DETECTED")
+        end
+
         local start = tick()
+        local didDisable = disableEnemy(name, false, false)
+
         repeat
-            task.wait(1)
             if tick() - start >= waitingTime then break end
-        until disableEnemy(name, false) == true
+            didDisable = disableEnemy(name, false, false)
+            task.wait(1)
+        until didDisable == true
     end
 end
 
@@ -1070,6 +1097,10 @@ enemyTab:CreateToggle({
         local mart = enemies:FindFirstChild("Mart") 
         if mart then
             handleEnemy(mart)
+        end
+
+        if curses:FindFirstChild("MartSlide") then
+            notif("Destroy Mart instead of disabling.", "MART SLIDE DETECTED")
         end
     end
 })
@@ -1135,13 +1166,24 @@ enemyTab:CreateToggle({
 
 enemyTab:CreateSection("ICBM")
 enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.ICBM,
+    Callback = function(v)
+        auto_disable.ICBM = v
+        local ICBM = enemies:FindFirstChild("ICBM") 
+        if ICBM then
+            handleEnemy(ICBM)
+        end
+    end
+})
+enemyTab:CreateToggle({
     Name = "Auto Destroy",
     CurrentValue = auto_destroy.ICBM,
     Callback = function(v)
         auto_destroy.ICBM = v
-        local icbm = enemies:FindFirstChild("ICBM") 
-        if icbm then
-            handleEnemy(icbm)
+        local ICBM = enemies:FindFirstChild("ICBM") 
+        if ICBM then
+            handleEnemy(ICBM)
         end
     end
 })
@@ -1154,7 +1196,7 @@ enemyTab:CreateToggle({
         auto_disable.Baby = v
         local baby = enemies:FindFirstChild("Baby") 
         if baby then
-            handleEnemy(baby, 6)
+            handleEnemy(baby)
         end
     end
 })
@@ -1165,7 +1207,7 @@ enemyTab:CreateToggle({
         auto_destroy.Baby = v
         local baby = enemies:FindFirstChild("Baby") 
         if baby then
-            handleEnemy(baby, 6)
+            handleEnemy(baby)
         end
     end
 })
@@ -1178,7 +1220,7 @@ enemyTab:CreateToggle({
         auto_disable.Flesh = v
         local flesh = enemies:FindFirstChild("Flesh") 
         if flesh then
-            handleEnemy(flesh, 5)
+            handleEnemy(flesh)
         end
     end
 })
@@ -1189,7 +1231,7 @@ enemyTab:CreateToggle({
         auto_destroy.Flesh = v
         local flesh = enemies:FindFirstChild("Flesh") 
         if flesh then
-            handleEnemy(flesh, 5)
+            handleEnemy(flesh)
         end
     end
 })
@@ -1231,7 +1273,7 @@ enemyTab:CreateToggle({
         auto_disable.nilEnemy = v
         local nilEnemy = enemies:FindFirstChild("nilEnemy") 
         if nilEnemy then
-            handleEnemy(nilEnemy, 6)
+            handleEnemy(nilEnemy)
         end
     end
 })
@@ -1242,7 +1284,7 @@ enemyTab:CreateToggle({
         auto_destroy.nilEnemy = v
         local nilEnemy = enemies:FindFirstChild("nilEnemy") 
         if nilEnemy then
-            handleEnemy(nilEnemy, 6)
+            handleEnemy(nilEnemy)
         end
     end
 })
@@ -1334,22 +1376,51 @@ enemyTab:CreateToggle({
         end
     end
 })
+enemyTab:CreateSection("Scrapmaw (WIP/NO IDEA IF IT WORKS)")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Scrapmaw,
+    Callback = function(v)
+        auto_disable.Scrapmaw = v
+        local Scrapmaw = enemies:FindFirstChild("Scrapmaw") 
+        if Scrapmaw then
+            handleEnemy(Scrapmaw)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Cadence,
+    Callback = function(v)
+        auto_destroy.Cadence = v
+        local Cadence = enemies:FindFirstChild("Cadence") 
+        if Cadence then
+            handleEnemy(Cadence)
+        end
+    end
+})
 
-enemyTab:CreateSection("ที่ပွ၊ יפהပ္כ아כב אפלအך") ---------just for fun
+enemyTab:CreateSection("")
+enemyTab:CreateSection("")
+enemyTab:CreateSection("")
+enemyTab:CreateSection("")
+enemyTab:CreateSection("")
+
+enemyTab:CreateSection("Blossom") ---------just for fun
 enemyTab:CreateToggle({
     Name = "???",
     CurrentValue = false,
     Callback = function()
-        notif("למה לבזבז את כל הזמן הזה באור? תהיה איתי בחושך.", "Catalyst")
-        warn("חוֹשֶׁך")
+        notif("bloom", "Celestial")
+        warn("doom")
     end
 })
 enemyTab:CreateToggle({
     Name = "???",
     CurrentValue = false,
     Callback = function()
-        notif("יום. פרח, פרחים רבים. שיחקתי בשדה של פרחים. עטוף בחשכה. ביכיתי. אבל החשכה הסתירה את דמעותיי. למדתי. זה לימד אותי. החשכה לא הייתה חבר שלי. עטוף באור השמים. כסה אותי מהחשך שמתחת. אני לא רוצה שזה יפגע בי שוב.", "Catalyst")
-        warn("חוֹשֶׁך")
+        notif("bloom", "Celestial")
+        warn("doom")
     end
 })
 
@@ -1441,7 +1512,7 @@ local function activateAltar()
     activating = true
 
     if not selectedPrompt or not selectedPrompt.Parent then
-        notif("Altar no longer exists.")
+        notif("Altar no longer exists.", "Not found")
         activating = false
         return
     end
@@ -1484,7 +1555,7 @@ mapTab:CreateButton({
     end
 })
 
-mapTab:CreateSection("Tripmines")
+mapTab:CreateSection("Hazards")
 local tpt = mapTab:CreateToggle({
     Name = "Tripmine Protection",
     CurrentValue = pt,
@@ -1492,6 +1563,60 @@ local tpt = mapTab:CreateToggle({
         pt = Value
         if not Value then
             tripmineprots:ClearAllChildren()
+        end
+    end
+})
+local dfca
+local nvi = mapTab:CreateToggle({
+    Name = "Disable Void Implosions",
+    CurrentValue = dvi,
+    Callback = function(Value)
+        dvi = Value
+
+        local vic = gcurses:FindFirstChild("VoidImplosions")
+
+        if dfca then
+            dfca:Disconnect()
+            connections["dfca"] = nil
+            dfca = nil
+        end
+
+        if dvi and vic then
+            dfca = destroyFolder.ChildAdded:Connect(function(child)
+                if child.Name == "VoidExplosion" then
+                    task.wait(.5)
+                    child:Destroy()
+                end
+            end)
+            connections["dfca"] = dfca
+        end
+    end
+})
+local nsm = mapTab:CreateToggle({
+    Name = "Disable Seamines",
+    CurrentValue = dsm,
+    Callback = function(Value)
+        dsm = Value
+
+        if dsm and #pads:GetChildren() > 0 then
+            local n = 0
+
+            for _, sm in pads:GetChildren() do
+                if sm.Name == "Seamine" then
+                    local ti = sm:FindFirstChild("TouchInterest")
+
+                    if ti then
+                        ti:Destroy()
+                        n += 1
+                    end
+                end
+            end
+
+            if n > 0 then
+                notif("Destroyed "..n.." Seamine(s).", "Success")
+            else
+                notif("No Seamines found.", "Erm")
+            end
         end
     end
 })
@@ -1506,7 +1631,7 @@ local ni = mapTab:CreateToggle({
     end
 })
 mapTab:CreateButton({
-    Name = "Find Ice Tiles",
+    Name = "Find Ice Tiles (LAGS ON PRESS)",
     Callback = function()
         local n = updateIceParts()
         if n then
@@ -1562,32 +1687,6 @@ plrTab:CreateSlider({
     end
 })
 plrTab:CreateSection("Character")
-local infjumpdb = false
-local infJump
-plrTab:CreateToggle({
-    Name = "Infinite Jump",
-    CurrentValue = false,
-    Callback = function(Value)
-        if not Value then
-            if infJump then infJump:Disconnect() table.remove(connections, "inf") end
-            infjumpdb = false
-            return
-        end
-
-	    if infJump then infJump:Disconnect() table.remove(connections, "inf") end
-
-	    infJump = UserInputService.JumpRequest:Connect(function()
-	    	if not infjumpdb then
-                local h = getHuman(getChar(plr))
-	    		infjumpdb = true
-	    		h:ChangeState(Enum.HumanoidStateType.Jumping)
-	    		task.wait(.1)
-	    		infjumpdb = false
-	    	end
-	    end)
-        table.insert(connections, "inf", infJump)
-    end
-})
 local vh = plrTab:CreateToggle({
     Name = "Visible Hitbox",
     CurrentValue = visibleHitbox,
@@ -1602,6 +1701,27 @@ local vh = plrTab:CreateToggle({
     end
 })
 
+local drb = plrTab:CreateButton({
+    Name = "Destroy Razorbloom (VISIBLE TO OTHERS)",
+    Callback = function(Value)
+        local char = getChar(plr)
+        local rbc = gcurses:FindFirstChild("Razorbloom")
+
+        if not char or isDead(plr) or not rbc then
+            notif("No character, dead, or Razorbloom isn't active.", "Failed")
+            return
+        end
+
+        local razorbloom = char:FindFirstChild("Razorbloom")
+
+        if razorbloom then
+            razorbloom:Destroy()
+            notif("Destroyed Razorbloom.", "Success")
+        else
+            notif("Razorbloom already disabled!", "Erm")
+        end
+    end
+})
 
 ---------------visual
 
@@ -1631,6 +1751,14 @@ local cge = visualTab:CreateToggle({
     Callback = function(Value)
         cesp = Value
         closestGiftTracer.Visible = cesp
+    end
+})
+local me = visualTab:CreateToggle({
+    Name = "Medal ESP",
+    CurrentValue = mesp,
+    Callback = function(Value)
+        mesp = Value
+        medalTracer.Visible = mesp
     end
 })
 local iet = visualTab:CreateToggle({
@@ -1684,6 +1812,23 @@ keyTab:CreateKeybind({
     Callback = function(key)
         if not canEzCollectGolden then return end
         collect("golden")
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Get Medal",
+    CurrentKeybind = "Eight",
+    HoldToInteract = false,
+    Callback = function(key)
+        if not canEzCollectMedal then return end
+        local medal = beacons:FindFirstChild("Medal")
+        local root, hitbox = getRoot(getChar(plr))
+
+        if medal and root and not isDead(plr) then
+            local sp = root.Position
+            root.Position = medal.Position
+            task.wait(.2)
+            root.Position = sp
+        end
     end
 })
 keyTab:CreateKeybind({
@@ -1787,6 +1932,13 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
+    Name = "Get Medal Keybind",
+    CurrentValue = canEzCollectMedal,
+    Callback = function(Value)
+        canEzCollectMedal = Value
+    end
+})
+keyTab:CreateToggle({
     Name = "Disable All Enemies Keybind",
     CurrentValue = canEzDisableAll,
     Callback = function(Value)
@@ -1863,7 +2015,7 @@ debugTab:CreateButton({
 ---------connections!
 
 for _, enemy in ipairs(enemies:GetChildren()) do
-    task.spawn(handleEnemy, enemy)
+    task.spawn(handleEnemy, enemy, 5)
 end
 local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
     enemy.Name = "Skinwalker"
@@ -1878,6 +2030,18 @@ end)
 table.insert(connections, eca)
 local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
 table.insert(connections, ecr)
+local pca = pads.ChildAdded:Connect(function(child)
+    if dsm then
+        if child.Name == "Seamine" then
+            local ti = child:FindFirstChild("TouchInterest")
+
+            if ti then
+                ti:Destroy()
+            end
+        end
+    end
+end)
+table.insert(connections, pca)
 
 ----loops!
 local loopClosest
@@ -1930,7 +2094,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
         for i, tile in pairs(iceParts) do
             if tile.Material == Enum.Material.Ice then
                 tile.Material = Enum.Material.Air
-                iceparts[i] = nil
+                iceParts[i] = nil
             end
         end
     end
@@ -1966,13 +2130,13 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
 
         if velov then
-            local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.25,1)
+            local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.5,1)
             local speed = velocity.Magnitude
 
             if speed > 0 then
                local direction = velocity.Unit
 
-                local length = math.clamp(speed * 0.5, 0.5, 100)
+                local length = math.clamp(speed * 0.5, 0.5, 150)
                 local t = math.clamp(speed / 75, 0, 1)
 
                 local startPos = root.Position
@@ -2147,9 +2311,67 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
     else
         closestGiftTracer.Visible = false
     end
+
+    if mesp then
+        local medalUpgrade = upgrades:FindFirstChild("Medal")
+
+        if medalUpgrade and medalUpgrade.Value == 1 then
+            local medal = beacons:FindFirstChild("Medal")
+
+            if medal then
+                local screenPos, visible = Camera:WorldToViewportPoint(medal.Position)
+                local viewport = Camera.ViewportSize
+
+                local from = Vector2.new(viewport.X / 2, viewport.Y / 2)
+                local to
+                local camCF = Camera.CFrame
+                local camPos = camCF.Position
+                local camLook = camCF.LookVector
+                local direction = (medal.Position - camPos).Unit
+                local dot = camLook:Dot(direction)
+
+                if not medal:FindFirstChild("BoxHandleAdornment") then
+                    local box = mb or Instance.new("BoxHandleAdornment")
+                    mb = box
+                    box.Size = medal.Size
+                    box.Adornee = medal
+                    box.AlwaysOnTop = true
+                    box.ZIndex = 0
+                    box.Color3 = Color3.new(1, 1, 1)
+                    box.Transparency = 0.75
+                    box.Parent = medal
+                end
+
+                if visible and dot > 0 then
+                    to = Vector2.new(screenPos.X, screenPos.Y)
+                else
+                    local x = math.clamp(screenPos.X, 0, viewport.X)
+                    local y = math.clamp(screenPos.Y, 0, viewport.Y)
+
+                    if dot < 0 then
+                        local center = Vector2.new(viewport.X/2, viewport.Y/2)
+                        local dir = (Vector2.new(screenPos.X, screenPos.Y) - center).Unit
+                        to = center + dir * math.max(viewport.X, viewport.Y)
+                    else
+                        to = Vector2.new(x, y)
+                    end
+                end
+
+                medalTracer.Visible = true
+                medalTracer.From = from
+                medalTracer.To = to
+            else
+                medalTracer.Visible = false
+            end
+        else
+            medalTracer.Visible = false
+        end
+    else
+        medalTracer.Visible = false
+    end
 end)
 
-RunService:BindToRenderStep("Tripmine", Enum.RenderPriority.Last.Value + 2, function()
+RunService:BindToRenderStep("Hazard", Enum.RenderPriority.Last.Value + 2, function()
     if pt then
         for _, trip in getActiveTripmines() do
             if trip.Transparency ~= 1 then
@@ -2177,10 +2399,10 @@ function destroyGui()
     RunService:UnbindFromRenderStep("DRAWING")
     print("drawing loop unbinded")
 
-    RunService:UnbindFromRenderStep("Tripmine")
-    tripmineprots:Destroy()
-    print("tripmine protection unbinded")
+    RunService:UnbindFromRenderStep("Hazard")
+    print("hazards unbinded")
 
+    tripmineprots:Destroy()
     tpt:Set(false)
     print("tripmine protection off")
 
@@ -2191,7 +2413,9 @@ function destroyGui()
         tn += 1
     end
     closestGiftTracer:Destroy(); tn += 1
+    medalTracer:Destroy(); tn += 1
     if cgb then cgb:Destroy() end
+    if mb then mb:Destroy() end
     print("Destroyed", tn, "tracer drawings and/or esp boxes")
 
     print("disconnecting "..#connections.." connections")
@@ -2220,6 +2444,12 @@ function destroyGui()
 
     ni:Set(false)
     print("no ice off")
+
+    nvi:Set(false)
+    print("void implosions back")
+
+    nsm:Set(false)
+    print("seamines back")
 
     tweening = false
     print("stopped tweening")
