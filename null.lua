@@ -90,10 +90,12 @@ local canEzCollectGolden = true
 local canEzCollectMedal = true
 local av = false
 local noice = false
+local noflesh = false
 local instrumentesp = false
 local pt = false
 local dvi = false
 local dsm = false
+local dso = false
 local velov = false
 local nrb = false
 local connections = {}
@@ -109,7 +111,6 @@ local clientenemies = {
 local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
-local iceParts = {}
 local cgb
 local mb
 
@@ -265,18 +266,6 @@ local function removeTracer(obj)
         tracers[obj]:Destroy()
         tracers[obj] = nil
     end
-end
-
-local function updateIceParts()
-    table.clear(iceParts)
-
-    for _, part in ipairs(currentRooms:GetDescendants()) do
-        if part:IsA("BasePart") and part.Material == Enum.Material.Ice then
-            iceParts[#iceParts+1] = part
-        end
-    end
-
-    return #iceParts
 end
 
 local lastRefresh = 0
@@ -498,6 +487,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     if blocked and (part.Name == "Gift" or part.Name == "GoldGift") then
         root.Position = pos
         hitbox.Position = pos
+        task.wait(.3)
         return
     end
 
@@ -1008,7 +998,6 @@ auto_disable.Flesh = false
 auto_disable.nilEnemy = false
 auto_disable.Telefragger = false
 auto_disable.ShadowBaby = false
-auto_disable.Scrapmaw = false
 
 local auto_destroy = {}
 auto_destroy.Bell = false
@@ -1376,26 +1365,15 @@ enemyTab:CreateToggle({
         end
     end
 })
-enemyTab:CreateSection("Scrapmaw (WIP/NO IDEA IF IT WORKS)")
+enemyTab:CreateSection("Scrapmaw")
 enemyTab:CreateToggle({
-    Name = "Auto Disable",
-    CurrentValue = auto_disable.Scrapmaw,
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Scrapmaw,
     Callback = function(v)
-        auto_disable.Scrapmaw = v
+        auto_destroy.Scrapmaw = v
         local Scrapmaw = enemies:FindFirstChild("Scrapmaw") 
         if Scrapmaw then
             handleEnemy(Scrapmaw)
-        end
-    end
-})
-enemyTab:CreateToggle({
-    Name = "Auto Destroy",
-    CurrentValue = auto_destroy.Cadence,
-    Callback = function(v)
-        auto_destroy.Cadence = v
-        local Cadence = enemies:FindFirstChild("Cadence") 
-        if Cadence then
-            handleEnemy(Cadence)
         end
     end
 })
@@ -1531,8 +1509,13 @@ local function activateAltar()
     root.CFrame = pos
     hitbox.CFrame = pos
 
-    repeat task.wait(.05)
-    until (root.Position - pPart.Position).Magnitude < 6
+    local start = tick()
+    repeat
+        task.wait(.05)
+        Camera.CFrame = pos
+        root.CFrame = pos
+        hitbox.CFrame = pos
+    until (root.Position - pPart.Position).Magnitude < 6 or tick() - start >= 3
 
     fireproximityprompt(selectedPrompt)
 
@@ -1584,7 +1567,6 @@ local nvi = mapTab:CreateToggle({
         if dvi and vic then
             dfca = destroyFolder.ChildAdded:Connect(function(child)
                 if child.Name == "VoidExplosion" then
-                    task.wait(.5)
                     child:Destroy()
                 end
             end)
@@ -1613,30 +1595,93 @@ local nsm = mapTab:CreateToggle({
             end
 
             if n > 0 then
-                notif("Destroyed "..n.." Seamine(s).", "Success")
+                notif("Disabled "..n.." Seamine(s).", "Success")
             else
-                notif("No Seamines found.", "Erm")
+                notif("No Seamines found or all Seamines already disabled!.", "Erm")
             end
+        end
+    end
+})
+local nso = mapTab:CreateToggle({
+    Name = "Disable Oblivion",
+    CurrentValue = dso,
+    Callback = function(Value)
+        dso = Value
+
+        if dso and enemies:FindFirstChild("Oblivion") then
+            enemies.Oblivion:Destroy()
         end
     end
 })
 
 mapTab:CreateSection("Tiles")
-local ilabel = mapTab:CreateLabel("Ice Tiles Detected: 0")
+
+local partsConnected = {}
+
+mapTab:CreateParagraph({
+    Title = "NOTE:",
+    Content = "Button below creates tile connections, toggle auto remove ice/flesh tiles will not do anything unless you create tile connections first. Press it every time a new level is done generating. No need to press more times."
+})
+mapTab:CreateButton({
+    Name = "Create Tile Connections (LAGS ON PRESS)",
+    Callback = function()
+        for p, c in pairs(partsConnected) do
+            c:Disconnect()
+            partsConnected[p] = nil
+        end
+
+        if #currentRooms:GetChildren() == 0 then
+            notif("Level is not loaded in yet.", "Erm")
+            return
+        end
+
+        for _, p in ipairs(currentRooms:GetDescendants()) do
+            if p:IsA("BasePart") and partsConnected[p] == nil then
+                local pmc = p:GetPropertyChangedSignal("Material"):Connect(function()
+                    if (p.Material == Enum.Material.Ice and noice)
+                    or(p.Material == Enum.Material.CorrodedMetal and noflesh) then
+                        p.Material = Enum.Material.Air
+                    end
+                end)
+
+                partsConnected[p] = pmc
+
+                p.Destroying:Once(function()
+                    pmc:Disconnect()
+                    partsConnected[p] = nil
+                end)
+
+                if noice and p.Material == Enum.Material.Ice then
+                    p.Material = Enum.Material.Air
+                end
+                if noflesh and p.Material == Enum.Material.CorrodedMetal then
+                    p.Material = Enum.Material.Air
+                end
+            end
+        end
+    end
+})
+
 local ni = mapTab:CreateToggle({
-    Name = "Remove Detected Ice Tiles",
+    Name = "Auto Remove Ice Tiles",
     CurrentValue = noice,
     Callback = function(Value)
         noice = Value
+
+        if #partsConnected > 0 and noice then
+            for p, _ in pairs(partsConnected) do
+                if p.Material == Enum.Material.Ice then
+                    p.Material = Enum.Material.Air
+                end
+            end
+        end
     end
 })
-mapTab:CreateButton({
-    Name = "Find Ice Tiles (LAGS ON PRESS)",
-    Callback = function()
-        local n = updateIceParts()
-        if n then
-            ilabel:Set("Ice Tiles Detected: "..n)
-        end
+local nf = mapTab:CreateToggle({
+    Name = "Auto Remove Flesh Tiles",
+    CurrentValue = noflesh,
+    Callback = function(Value)
+        noflesh = Value
     end
 })
 
@@ -2024,6 +2069,10 @@ local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
 end)
 table.insert(connections, skwca)
 local eca = enemies.ChildAdded:Connect(function(enemy)
+    if enemy.Name == "Oblivion" and dso then
+        enemy:Destroy()
+    end
+
     updateEnemySelection()
     handleEnemy(enemy)
 end)
@@ -2033,6 +2082,7 @@ table.insert(connections, ecr)
 local pca = pads.ChildAdded:Connect(function(child)
     if dsm then
         if child.Name == "Seamine" then
+            task.wait(3)
             local ti = child:FindFirstChild("TouchInterest")
 
             if ti then
@@ -2087,15 +2137,6 @@ local runLoop = RunService.Heartbeat:Connect(function()
     if visibleHitbox then
         if root and hitbox then
             hitbox.Transparency = 0
-        end
-    end
-
-    if noice and #iceParts > 0 then
-        for i, tile in pairs(iceParts) do
-            if tile.Material == Enum.Material.Ice then
-                tile.Material = Enum.Material.Air
-                iceParts[i] = nil
-            end
         end
     end
 
@@ -2307,6 +2348,7 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
             closestGiftTracer.To = to
         else
             closestGiftTracer.Visible = false
+            cgb.Transparency = 1
         end
     else
         closestGiftTracer.Visible = false
@@ -2422,6 +2464,13 @@ function destroyGui()
     for _, c in connections do
         c:Disconnect()
     end
+    connections = nil
+
+    print("disconnecting "..#partsConnected.." tile connections")
+    for _, c in pairs(partsConnected) do
+        c:Disconnect()
+    end
+    partsConnected = nil
 
     vh:Set(false)
     print("visible hitbox off")
@@ -2444,6 +2493,9 @@ function destroyGui()
 
     ni:Set(false)
     print("no ice off")
+
+    nf:Set(false)
+    print("no flesh off")
 
     nvi:Set(false)
     print("void implosions back")
