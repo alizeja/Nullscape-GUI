@@ -79,6 +79,8 @@ vpBox.ZIndex = 0
 vpBox.Adornee = velocityPart
 vpBox.Parent = velocityPart
 
+local notifOn = true
+
 local tweening = false
 local currentTween:tween = nil
 local aura = false
@@ -88,6 +90,7 @@ local visibleHitbox = false
 local canInstaGrapple = false
 local canToggleAura = true
 local canGoHome = true
+local canGoBeacon = true
 local canEzDisableAll = true
 local canEzDisableAllC = true
 local canEzCollectNormal = true
@@ -128,7 +131,9 @@ local Window = Rayfield:CreateWindow({
    LoadingSubtitle = "by John Nullscape (Ali)",
    ShowText = "Null!",
 
-   ToggleUIKeybind = "K"
+   ToggleUIKeybind = "K",
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false
 })
 
 function notif(text: string, title: string, dur: number)
@@ -608,7 +613,9 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             end
         end
 
-        notif(name.." disabled. (destroyed)", "Enemy")
+        if notifOn then
+            notif(name.." disabled. (destroyed)", "Enemy")
+        end
         return true
     end
 
@@ -621,7 +628,9 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             local n, enemiesFound = loopEnemies(name)
 
             if n > 0 then
-                notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
+                if notifOn then
+                    notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
+                end
 
                 if willBreakAI then
                         for _, e in pairs(enemiesFound) do
@@ -635,7 +644,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
                 return true
             else
-                if failNotif == true then
+                if failNotif == true and notifOn then
                     print(failNotif)
                     notif(name.." cannot be disabled, or already disabled.", "Enemy")
                 end
@@ -649,7 +658,9 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             local n, enemiesFound = loopEnemies(name)
 
             if n > 0 then
-                notif(tostring(n).." Bell(s) disabled.", "Enemy")
+                if notifOn then
+                    notif(tostring(n).." Bell(s) disabled.", "Enemy")
+                end
 
                 if willBreakAI then
                         for _, b in pairs(enemiesFound) do
@@ -663,7 +674,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
                 return true
             else
-                if failNotif == true then
+                if failNotif == true and notifOn then
                     notif("Bell cannot be disabled, or already disabled.", "Enemy")
                 end
                 return false
@@ -673,7 +684,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         Skinwalker = function(name, willDestroy, willBreakAI)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
-                if failNotif then
+                if failNotif == true and notifOn then
                     notif("Husk isn't following you yet.", "Enemy")
                 end
                 return false
@@ -687,10 +698,12 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
 
             if n > 0 then
-                notif(tostring(n).." Husk(s) disabled.", "Enemy")
+                if notifOn then
+                    notif(tostring(n).." Husk(s) disabled.", "Enemy")
+                end
                 return true
             else
-                if failNotif == true then
+                if failNotif == true and notifOn then
                     notif("Husks are already disabled.", "Enemy")
                 end
                 return true
@@ -702,7 +715,9 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 local n, enemiesFound = loopEnemies(name, "DemonShockwave")
 
                 if n > 0 then
-                    notif(tostring(n).." Springer(s) disabled.", "Enemy")
+                    if notifOn then
+                        notif(tostring(n).." Springer(s) disabled.", "Enemy")
+                    end
 
                     if willBreakAI then
                             for _, s in pairs(enemiesFound) do
@@ -716,7 +731,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
                     return true
                 else
-                    if failNotif == true then
+                    if failNotif == true and notifOn then
                         notif("No Springers left to disable.", "Enemy")
                     end
                     return true
@@ -741,9 +756,9 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                         end
                     end
 
-                    if n > 0 then
+                    if n > 0 and notifOn then
                         notif(tostring(n).." ICBM(s) disabled.", "Enemy")
-                    elseif failNotif == true then
+                    elseif failNotif == true and notifOn then
                         notif("No ICBMs left to disable.", "Enemy")
                     end
                     return true
@@ -843,7 +858,12 @@ local function collect(which)
     local activeTripmines = getActiveTripmines()
 
     local function collectGolden()
-        if tweening then notif("Already collecting.", "Collection System") return end
+        if tweening then
+            if notifOn then
+                notif("Already collecting.", "Collection System")
+            end
+            return
+        end
         tweening = true
         local startRefreshing
 
@@ -861,7 +881,9 @@ local function collect(which)
 
             local gift = getClosestGift(availableGoldenGifts)
             if not gift then
-                notif("no golden gifts, or currently finding golden gifts", "Gift Not Found")
+                if notifOn then
+                    notif("no golden gifts, or currently finding golden gifts", "Gift Not Found")
+                end
                 break
             end
             if not startRefreshing then
@@ -877,7 +899,12 @@ local function collect(which)
     end
 
     local function collectNormal(getGoldenAfter)
-        if tweening then notif("Already collecting.", "Collection System") return end
+        if tweening then
+            if notifOn then
+                notif("Already collecting.", "Collection System")
+            end
+            return
+        end
         tweening = true
         local startRefreshing
 
@@ -895,7 +922,9 @@ local function collect(which)
 
             local gift = getClosestGift(availableNormalGifts)
             if not gift then
-                notif("no gifts, or currently finding gifts", "Gift Not Found")
+                if notifOn then
+                    notif("no gifts, or currently finding gifts", "Gift Not Found")
+                end
                 break
             end
             if not startRefreshing then
@@ -946,56 +975,13 @@ mainTab:CreateButton({
 
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
-local selectedEnemies = {}
 
-local selectEnemies = enemyTab:CreateDropdown({
-   Name = "Select Enemy",
-   Options = {},
-   CurrentOption = {},
-   MultipleOptions = true,
-   Callback = function(Options)
-        selectedEnemies = Options
-   end,
-})
-
-local function updateEnemySelection()
-    local enemiesactive = {}
-    local seen = {}
-
-    local activeEnemies = enemies:GetChildren()
-    if #activeEnemies == 0 then
-        selectEnemies:Refresh({})
-        selectEnemies:Set({})
-        return {}
-    end
-
-    for _, enemy in activeEnemies do
-        if not seen[enemy.Name] then
-            seen[enemy.Name] = true
-            table.insert(enemiesactive, enemy.Name)
-        end
-    end
-
-    selectEnemies:Refresh(enemiesactive)
-    return enemiesactive
-end
-updateEnemySelection()
-
-local function disableSelected(willDestroy: boolean, willBreakAi: boolean)
-    if selectedEnemies then
-        for _, enemy in selectedEnemies do
-            task.spawn(function()
-                disableEnemy(enemy, willDestroy, willBreakAi)
-            end)
-        end
-    else
-        notif("No Enemy Selected", "Not found")
-    end
-end
 local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: boolean)
     local allenemies = updateEnemySelection()
     if not allenemies or #allenemies == 0 then
-        notif("No enemies available.", "Not found")
+        if notifOn then
+            notif("No enemies available.", "Not found")
+        end
         return
     end
 
@@ -1014,33 +1000,9 @@ local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: bo
 end
 
 enemyTab:CreateButton({
-    Name = "Disable Client-sided Enemies Only",
-    Callback = function()
-        disableAll(false, true)
-    end
-})
-enemyTab:CreateButton({
-    Name = "Break Client-sided Enemies Only",
-    Callback = function()
-        disableAll(false, true, true)
-    end
-})
-enemyTab:CreateButton({
-    Name = "Disable Selected Enemies",
-    Callback = function()
-        disableSelected()
-    end
-})
-enemyTab:CreateButton({
     Name = "Disable All",
     Callback = function()
         disableAll()
-    end
-})
-enemyTab:CreateButton({
-    Name = "Break Selected Enemies",
-    Callback = function()
-        disableSelected(false, true)
     end
 })
 enemyTab:CreateButton({
@@ -1050,17 +1012,26 @@ enemyTab:CreateButton({
     end
 })
 enemyTab:CreateButton({
-    Name = "Destroy Selected Enemies",
-    Callback = function()
-        disableSelected(true)
-    end
-})
-enemyTab:CreateButton({
     Name = "Destroy All",
     Callback = function()
         disableAll(true)
     end
 })
+
+enemyTab:CreateSection("Client-sided Enemies")
+enemyTab:CreateButton({
+    Name = "Disable Client-sided Enemies Only",
+    Callback = function()
+        disableAll(false, true)
+    end
+})
+enemyTab:CreateButton({
+    Name = "Destroy Client-sided Enemies Only",
+    Callback = function()
+        disableAll(true, true)
+    end
+})
+
 enemyTab:CreateDivider()
 
 
@@ -1086,6 +1057,7 @@ auto_break.Flesh = false
 auto_break.nilEnemy = false
 auto_break.Telefragger = false
 auto_break.ShadowBaby = false
+auto_break.RealityBreak = false
 
 local auto_destroy = {}
 auto_destroy.Bell = false
@@ -1103,6 +1075,7 @@ auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
 auto_destroy.Scrapmaw = false
+auto_destroy.RealityBreak = false
 
 local function handleEnemy(enemy)
     local name = enemy.Name
@@ -1126,7 +1099,7 @@ local function handleEnemy(enemy)
             task.wait(1)
         until didDestroy == true
     elseif auto_break[name] then
-        if name == "Mart" and curses:FindFirstChild("MartSlide") then
+        if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
             notif("Destroy Mart instead of breaking.", "MART SLIDE DETECTED")
         end
 
@@ -1139,7 +1112,7 @@ local function handleEnemy(enemy)
             task.wait(1)
         until didBreak == true
     elseif auto_disable[name] then
-        if name == "Mart" and curses:FindFirstChild("MartSlide") then
+        if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
             notif("Destroy Mart instead of disabling.", "MART SLIDE DETECTED")
         end
 
@@ -1202,7 +1175,7 @@ enemyTab:CreateToggle({
             handleEnemy(mart)
         end
 
-        if curses:FindFirstChild("MartSlide") then
+        if curses:FindFirstChild("MartSlide") and notifOn then
             notif("Destroy Mart instead of disabling.", "MART SLIDE DETECTED")
         end
     end
@@ -1217,7 +1190,7 @@ enemyTab:CreateToggle({
             handleEnemy(Mart)
         end
         
-        if curses:FindFirstChild("MartSlide") then
+        if curses:FindFirstChild("MartSlide") and notifOn then
             notif("Destroy Mart instead of breaking.", "MART SLIDE DETECTED")
         end
     end
@@ -1594,15 +1567,33 @@ enemyTab:CreateToggle({
     end
 })
 
-enemyTab:CreateSection("")
-enemyTab:CreateSection("")
-enemyTab:CreateSection("")
-enemyTab:CreateSection("")
-enemyTab:CreateSection("")
-
-enemyTab:CreateSection("Blossom") ------------just for fun!!!!!!!!!!!!!!!!!!!!!
+enemyTab:CreateSection("Blossom")
+enemyTab:CreateSection("Reality Break")
 enemyTab:CreateToggle({
-    Name = "???",
+    Name = "Auto Break AI",
+    CurrentValue = auto_break.RealityBreak,
+    Callback = function(v)
+        auto_break.RealityBreak = v
+        local RealityBreak = enemies:FindFirstChild("RealityBreak") 
+        if RealityBreak then
+            handleEnemy(RealityBreak)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.RealityBreak,
+    Callback = function(v)
+        auto_destroy.RealityBreak = v
+        local RealityBreak = enemies:FindFirstChild("RealityBreak") 
+        if RealityBreak then
+            handleEnemy(RealityBreak)
+        end
+    end
+})
+
+enemyTab:CreateToggle({
+    Name = "Disable Celestial (NOT ADDED)",
     CurrentValue = false,
     Callback = function()
         notif("Bloom.", "Celestial")
@@ -1610,11 +1601,11 @@ enemyTab:CreateToggle({
     end
 })
 enemyTab:CreateToggle({
-    Name = "???",
+    Name = "Destroy Celestial (NOT ADDED)",
     CurrentValue = false,
     Callback = function()
-        notif("Bloom.", "Celestial")
-        warn("Doom.")
+        notif("Doom.", "Celestial")
+        warn("Bloom.")
     end
 })
 
@@ -1712,7 +1703,9 @@ local function activateAltar(justTeleport)
     end
 
     if not selectedPrompt or not selectedPrompt.Parent then
-        notif("Altar no longer exists.", "Not found")
+        if notifOn then
+            notif("Altar no longer exists.", "Not found")
+        end
         activating = false
         return
     end
@@ -1828,9 +1821,9 @@ local nsm = mapTab:CreateToggle({
                 end
             end
 
-            if n > 0 then
+            if n > 0 and notifOn then
                 notif("Disabled "..n.." Seamine(s).", "Success")
-            else
+            elseif notifOn then
                 notif("No Seamines found or all Seamines already disabled!.", "Erm")
             end
         end
@@ -1847,7 +1840,6 @@ local nso = mapTab:CreateToggle({
         end
     end
 })
-
 local dfb = mapTab:CreateToggle({
     Name = "Destroy Fake Beacons",
     CurrentValue = nfb,
@@ -1856,7 +1848,7 @@ local dfb = mapTab:CreateToggle({
 
         if nfb and beacons:FindFirstChild("Beacon") then
             for _, b in beacons:GetChildren() do
-                if b.Name == "Beacon" then
+                if b.Name == "BeaconMirage" then
                     b:Destroy()
                 end
             end
@@ -1881,7 +1873,9 @@ mapTab:CreateButton({
         end
 
         if #currentRooms:GetChildren() == 0 then
-            notif("Level is not loaded in yet.", "Erm")
+            if notifOn then
+                notif("Level is not loaded in yet.", "Erm")
+            end
             return
         end
 
@@ -1932,6 +1926,82 @@ local nf = mapTab:CreateToggle({
     CurrentValue = noflesh,
     Callback = function(Value)
         noflesh = Value
+    end
+})
+
+mapTab:CreateSection("BLOOM (UNTESTED)")
+
+mapTab:CreateLabel("RealityBreak in Enemies Tab")
+
+local selectedPylon
+local pylonVal = {}
+
+local selectPylons = mapTab:CreateDropdown({
+   Name = "Select Pylon",
+   Options = {},
+   CurrentOption = {},
+   MultipleOptions = false,
+   Callback = function(Options)
+        selectedPylon = pylonVal[Options[1]]
+   end
+})
+local function updatePylonSelection()
+    pylonVal = {}
+
+    local n = 1
+    local options = {}
+
+    for _, p in currentRooms:GetChildren() do
+        if p.Name == "CellPlatform" then
+            local text = n..". Pylon"
+            pylonVal[text] = p
+            table.insert(options, text)
+
+            n += 1
+        end
+    end
+    selectPylons:Set("")
+    selectPylons:Refresh(options)
+end
+
+local function teleportPylon()
+    if not selectedPylon or not selectedPylon.Parent then
+        if notifOn then
+            notif("Pylon doesn't exist.", "Not found")
+        end
+        return
+    end
+
+    local pPart = selectedPylon.SpiralBase
+    local char = getChar(plr)
+    local root, hitbox = getRoot(char)
+    if not root or not hitbox then
+        return
+    end
+
+    local pos = pPart.CFrame + pPart.CFrame.LookVector * -3
+    Camera.CFrame = pos
+    root.CFrame = pos
+    hitbox.CFrame = pos
+
+    local start = tick()
+    repeat
+        task.wait(.05)
+        Camera.CFrame = pos
+        root.CFrame = pos
+        hitbox.CFrame = pos
+    until (root.Position - pPart.Position).Magnitude < 6 or tick() - start >= 3
+end
+mapTab:CreateButton({
+    Name = "Teleport to Selected Pylon",
+    Callback = function()
+        teleportPylon()
+    end
+})
+mapTab:CreateButton({
+    Name = "Find Pylons",
+    Callback = function()
+        updatePylonSelection()
     end
 })
 
@@ -2118,9 +2188,7 @@ keyTab:CreateKeybind({
     HoldToInteract = false,
     Callback = function(key)
         if not canEzDisableAll then return end
-        selectedEnemies = updateEnemySelection()
-        task.wait()
-        disableSelected()
+        disableAll(false, false, false)
     end
 })
 keyTab:CreateKeybind({
@@ -2170,13 +2238,26 @@ keyTab:CreateKeybind({
     end
 })
 keyTab:CreateKeybind({
-    Name = "Teleport to Spawn/Beacon",
+    Name = "Teleport to Spawn",
     CurrentKeybind = "Home",
     HoldToInteract = false,
     Callback = function()
         if not canGoHome then return end
         local root, hitbox = getRoot(getChar(plr))
         local pos = spawnPart.Position + Vector3.new(0,4,0)
+        root.Position = pos
+        hitbox.Position = pos
+    end
+})
+
+keyTab:CreateKeybind({
+    Name = "Teleport to Beacon",
+    CurrentKeybind = "Insert",
+    HoldToInteract = false,
+    Callback = function()
+        if not canGoBeacon then return end
+        local root, hitbox = getRoot(getChar(plr))
+        local pos = workspace.Beacon.Position + Vector3.new(0,4,0)
         root.Position = pos
         hitbox.Position = pos
     end
@@ -2241,10 +2322,17 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
-    Name = "Teleport to Spawn/Beacon Keybind",
+    Name = "Teleport to Spawn Keybind",
     CurrentValue = canGoHome,
     Callback = function(Value)
         canGoHome = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Teleport to Beacon Keybind",
+    CurrentValue = canGoBeacon,
+    Callback = function(Value)
+        canGoBeacon = Value
     end
 })
 -- keyTab:CreateToggle({
@@ -2260,7 +2348,9 @@ debugTab:CreateButton({
     Name = "Copy Lobby Code",
     Callback = function()
         if code.Value == nil or code.Value == " " or code.Value == "" then
-            notif("You are in solo or code not found.", "Code")
+            if notifOn then
+                notif("You are in solo or code not found.", "Code")
+            end
             return
         end
         toClipboard(code.Value)
@@ -2271,6 +2361,13 @@ local er = debugTab:CreateToggle({
     CurrentValue = true,
     Callback = function(Value)
         StarterGui:SetCore("ResetButtonCallback", Value)
+    end
+})
+local er = debugTab:CreateToggle({
+    Name = "Disable All Notifications",
+    CurrentValue = notifOn,
+    Callback = function(Value)
+        notifOn = Value
     end
 })
 StarterGui:SetCore("ResetButtonCallback", true)
@@ -2309,12 +2406,9 @@ local eca = enemies.ChildAdded:Connect(function(enemy)
         enemy:Destroy()
     end
 
-    updateEnemySelection()
     handleEnemy(enemy)
 end)
 table.insert(connections, eca)
-local ecr = enemies.ChildRemoved:Connect(updateEnemySelection)
-table.insert(connections, ecr)
 local pca = pads.ChildAdded:Connect(function(child)
     if dsm then
         if child.Name == "Seamine" then
@@ -2399,7 +2493,9 @@ local runLoop = RunService.Heartbeat:Connect(function()
                     root.Position = gift.Position
                 else
                     root.Position = pos
-                    notif("No gift! Automatically doing Teleport to Spawn", "Anti Void")
+                    if notifOn then
+                        notif("No gift! Automatically doing Teleport to Spawn", "Anti Void")
+                    end
                 end
             end
 
@@ -2465,13 +2561,15 @@ local runLoop = RunService.Heartbeat:Connect(function()
         local rb = char:FindFirstChild("Razorbloom")
         if rb then
             rb:Destroy()
-            notif("Razorbloom destroyed.", "Success")
+            if notifOn then
+                notif("Razorbloom destroyed.", "Success")
+            end
         end
     end
     
     if nfb and beacons:FindFirstChild("Beacon") then
         for _, b in beacons:GetChildren() do
-            if b.Name == "Beacon" then
+            if b.Name == "BeaconMirage" then
                 b:Destroy()
             end
         end
