@@ -132,8 +132,8 @@ local Window = Rayfield:CreateWindow({
    ShowText = "Null!",
 
    ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false
+   DisableRayfieldPrompts = true,
+   DisableBuildWarnings = true
 })
 
 function notif(text: string, title: string, dur: number)
