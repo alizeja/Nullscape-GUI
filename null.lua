@@ -1605,16 +1605,16 @@ enemyTab:CreateToggle({
     Name = "???",
     CurrentValue = false,
     Callback = function()
-        notif("bloom", "Celestial")
-        warn("doom")
+        notif("Bloom.", "Celestial")
+        warn("Doom.")
     end
 })
 enemyTab:CreateToggle({
     Name = "???",
     CurrentValue = false,
     Callback = function()
-        notif("bloom", "Celestial")
-        warn("doom")
+        notif("Bloom.", "Celestial")
+        warn("Doom.")
     end
 })
 
