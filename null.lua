@@ -53,11 +53,15 @@ local gcurses = ReplicatedStorage.GreaterCurseFolder.Curses
 local upgrades = ReplicatedStorage.UpgradeFolder.Upgrades
 local beacons = workspace.Beacons
 local destroyFolder = workspace.DestroyFolder
-
+local bullets = items.Bullet
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
 tripmineprots.Name = "Tripmine Protection (NULL GUI)"
+
+local bulletprots = Instance.new("Folder")
+bulletprots.Parent = workspace
+bulletprots.Name = "Guardian Bullets Protection (NULL GUI)"
 
 local velocityPart = Instance.new("Part")
 velocityPart.Name = "VelocityVisualizer"
@@ -76,6 +80,7 @@ vpBox.Adornee = velocityPart
 vpBox.Parent = velocityPart
 
 local tweening = false
+local currentTween:tween = nil
 local aura = false
 local cesp = false
 local mesp = false
@@ -93,6 +98,7 @@ local noice = false
 local noflesh = false
 local instrumentesp = false
 local pt = false
+local pb = false
 local dvi = false
 local dsm = false
 local dso = false
@@ -467,6 +473,36 @@ local function protectTripmine(trip)
     end)
 end
 
+local function protectBullet(b)
+    if not b:GetAttribute("uuid") then
+        b:SetAttribute("uuid", HttpService:GenerateGUID(false))
+    end
+
+    local id = b:GetAttribute("uuid")
+
+    if bulletprots:FindFirstChild(id) then return end
+
+    local startPos = b.Position
+
+    local sizeoffset = b.Size.X + 5
+
+    local p = Instance.new("Part")
+    p.Name = id
+    p.Shape = Enum.PartType.Ball
+    p.Size = Vector3.new(sizeoffset, sizeoffset, sizeoffset)
+    p.Position = startPos
+    p.Anchored = true
+    p.CanCollide = false
+    p.CanTouch = false
+    p.CanQuery = false
+    p.Transparency = 0.35
+    p.Parent = bulletprots
+
+    b:GetPropertyChangedSignal("Transparency"):Once(function()
+        p:Destroy()
+    end)
+end
+
 local function goTo(part, activeTripmines, activeEnemies)
     if not activeEnemies then activeEnemies = enemies:GetChildren() end
     if not part then return end
@@ -529,9 +565,13 @@ local function getAltarPrompts()
     return prompts
 end
 
-local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
-    failNotif = failNotif ~= nil and failNotif or true
-    willBreakAi = willBreakAi ~= nil and willBreakAi or false
+local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
+    if failNotif == nil then
+        failNotif = true
+    end
+    if willBreakAI == nil then
+        willBreakAI = false
+    end
     
     local function loopEnemies(name, remove, list)
         list = list or enemies
@@ -573,7 +613,8 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
     end
 
     local disableFunction = {
-        Basic = function(name, willDestroy, willBreakAi)
+        Basic = function(name, willDestroy, willBreakAI)
+            if not name then return end --how the fuck is there no names
             if willDestroy then
                 return destroyEnemy(name)
             end
@@ -582,7 +623,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
             if n > 0 then
                 notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
 
-                if willBreakAi then
+                if willBreakAI then
                         for _, e in pairs(enemiesFound) do
                         local clientScript = e:FindFirstChild(name.."_ClientAI")
                     
@@ -601,7 +642,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
                 return false
             end
         end,
-        Bell = function(name, willDestroy, willBreakAi)
+        Bell = function(name, willDestroy, willBreakAI)
             if willDestroy then
                 return destroyEnemy(name)
             end
@@ -610,7 +651,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
             if n > 0 then
                 notif(tostring(n).." Bell(s) disabled.", "Enemy")
 
-                if willBreakAi then
+                if willBreakAI then
                         for _, b in pairs(enemiesFound) do
                         local clientScript = b:FindFirstChild(name.."_ClientAI")
                     
@@ -629,7 +670,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
             end
 
         end,
-        Skinwalker = function(name, willDestroy)
+        Skinwalker = function(name, willDestroy, willBreakAI)
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
                 if failNotif then
@@ -655,7 +696,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
                 return true
             end
         end,
-        Springer = function(name, willDestroy, willBreakAi)
+        Springer = function(name, willDestroy, willBreakAI)
             if not willDestroy then
                 loopEnemies(name, "SpringerShockwave")
                 local n, enemiesFound = loopEnemies(name, "DemonShockwave")
@@ -663,7 +704,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
                 if n > 0 then
                     notif(tostring(n).." Springer(s) disabled.", "Enemy")
 
-                    if willBreakAi then
+                    if willBreakAI then
                             for _, s in pairs(enemiesFound) do
                             local clientScript = s:FindFirstChild("Springer_ClientAI")
 
@@ -684,7 +725,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
                 return destroyEnemy(name)
             end
         end,
-        ICBM = function(name, willDestroy)
+        ICBM = function(name, willDestroy, willBreakAI)
             if not willDestroy then
                 local _, enemiesFound = loopEnemies(name)
 
@@ -711,24 +752,24 @@ local function disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
                 return destroyEnemy(name)
             end
         end,
-        Kolona = function(name, willDestroy)
+        Kolona = function(name, willDestroy, willBreakAI)
            return destroyEnemy(name)
         end,
-        Operator = function(name, willDestroy)
+        Operator = function(name, willDestroy, willBreakAI)
            return destroyEnemy(name)
         end,
-        Voidbreaker = function(name, willDestroy)
+        Voidbreaker = function(name, willDestroy, willBreakAI)
            return destroyEnemy(name)
         end,
-        Scrapmaw = function(name, willDestroy)
+        Scrapmaw = function(name, willDestroy, willBreakAI)
             return destroyEnemy(name)
         end
     }
 
     if disableFunction[enemyName] then
-        return disableFunction[enemyName](enemyName, willDestroy, willBreakAi)
+        return disableFunction[enemyName](enemyName, willDestroy, willBreakAI)
     else
-        return disableFunction.Basic(enemyName, willDestroy, willBreakAi)
+        return disableFunction.Basic(enemyName, willDestroy, willBreakAI)
     end
 end
 
@@ -786,6 +827,15 @@ local function getSeamines()
     end
 
     return seamines
+end
+
+local function isdirectionsafetopushfromguardianbullet(pos, direction)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    rayParams.FilterDescendantsInstances = {game.Players.LocalPlayer.Character}
+
+    local result = workspace:Raycast(pos, direction * 6, rayParams)
+    return result ~= nil and result.Instance and result.Instance.CanCollide == true
 end
 
 ---------------------collection
@@ -1059,7 +1109,7 @@ local function handleEnemy(enemy)
     local waitingTime = 7.5
 
     if name == "ICBM" or name == "Telefragger" then
-        waitingTime = 25
+        waitingTime = 35
     end
     if name == "Springer" then
         waitingTime = 10
@@ -1072,6 +1122,7 @@ local function handleEnemy(enemy)
         repeat
             if tick() - start >= waitingTime then break end
             didDestroy = disableEnemy(name, true, false, false)
+            disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
             task.wait(1)
         until didDestroy == true
     elseif auto_break[name] then
@@ -1080,14 +1131,13 @@ local function handleEnemy(enemy)
         end
 
         local start = tick()
-        local didDisable = disableEnemy(name, false, true, false)
+        local didBreak = disableEnemy(name, false, true, false)
 
         repeat
             if tick() - start >= waitingTime then break end
-            didDisable = disableEnemy(name, false, true, false)
+            didBreak = disableEnemy(name, false, true, false)
             task.wait(1)
-        until didDisable == true
-        
+        until didBreak == true
     elseif auto_disable[name] then
         if name == "Mart" and curses:FindFirstChild("MartSlide") then
             notif("Destroy Mart instead of disabling.", "MART SLIDE DETECTED")
@@ -1337,8 +1387,17 @@ enemyTab:CreateToggle({
     end
 })
 
-enemyTab:CreateSection("Guardian")
-enemyTab:CreateLabel("Cannot be disabled.")
+enemyTab:CreateSection("Guardian (CANNOT BE DISABLED)")
+local bpt = enemyTab:CreateToggle({
+    Name = "Create Protection",
+    CurrentValue = pb,
+    Callback = function(Value)
+        pb = Value
+        if not Value then
+            bulletprots:ClearAllChildren()
+        end
+    end
+})
 
 enemyTab:CreateSection("Operator")
 enemyTab:CreateToggle({
@@ -1436,44 +1495,6 @@ enemyTab:CreateToggle({
     end
 })
 
-enemyTab:CreateSection("Voidbound Guardian")
-enemyTab:CreateLabel("Cannot be disabled.")
-
-enemyTab:CreateSection("Voidbound Baby")
-enemyTab:CreateToggle({
-    Name = "Auto Disable",
-    CurrentValue = auto_disable.ShadowBaby,
-    Callback = function(v)
-        auto_disable.ShadowBaby = v
-        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
-        if ShadowBaby then
-            handleEnemy(ShadowBaby)
-        end
-    end
-})
-enemyTab:CreateToggle({
-    Name = "Auto Break AI",
-    CurrentValue = auto_break.ShadowBaby,
-    Callback = function(v)
-        auto_break.ShadowBaby = v
-        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
-        if ShadowBaby then
-            handleEnemy(ShadowBaby)
-        end
-    end
-})
-enemyTab:CreateToggle({
-    Name = "Auto Destroy",
-    CurrentValue = auto_destroy.ShadowBaby,
-    Callback = function(v)
-        auto_destroy.ShadowBaby = v
-        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
-        if ShadowBaby then
-            handleEnemy(ShadowBaby)
-        end
-    end
-})
-
 enemyTab:CreateSection("Voidbreaker")
 enemyTab:CreateToggle({
     Name = "Auto Destroy",
@@ -1521,6 +1542,45 @@ enemyTab:CreateToggle({
         end
     end
 })
+
+enemyTab:CreateSection("Voidbound Baby")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.ShadowBaby,
+    Callback = function(v)
+        auto_disable.ShadowBaby = v
+        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
+        if ShadowBaby then
+            handleEnemy(ShadowBaby)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Break AI",
+    CurrentValue = auto_break.ShadowBaby,
+    Callback = function(v)
+        auto_break.ShadowBaby = v
+        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
+        if ShadowBaby then
+            handleEnemy(ShadowBaby)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.ShadowBaby,
+    Callback = function(v)
+        auto_destroy.ShadowBaby = v
+        local ShadowBaby = enemies:FindFirstChild("ShadowBaby") 
+        if ShadowBaby then
+            handleEnemy(ShadowBaby)
+        end
+    end
+})
+
+enemyTab:CreateSection("Voidbound Guardian")
+enemyTab:CreateLabel("Cannot be disabled.")
+
 enemyTab:CreateSection("Scrapmaw")
 enemyTab:CreateToggle({
     Name = "Auto Destroy",
@@ -1642,9 +1702,14 @@ end
 updateAltarSelection()
 
 local function activateAltar(justTeleport)
-    if activating then return end
-    activating = true
-    justTeleport = justTeleport ~= nil and justTeleport or false
+    if activating and justTeleport == false then return end
+    if justTeleport == nil then
+        justTeleport = false
+    end
+
+    if not justTeleport then
+        activating = true
+    end
 
     if not selectedPrompt or not selectedPrompt.Parent then
         notif("Altar no longer exists.", "Not found")
@@ -1751,10 +1816,14 @@ local nsm = mapTab:CreateToggle({
             for _, sm in pads:GetChildren() do
                 if sm.Name == "Seamine" then
                     local ti = sm:FindFirstChild("TouchInterest")
+                    local ls = sm:FindFirstChild("ClientMine")
 
                     if ti then
                         ti:Destroy()
                         n += 1
+                    end
+                    if ls then
+                        ls.Enabled = false
                     end
                 end
             end
@@ -1994,7 +2063,7 @@ local fov = visualTab:CreateSlider({
     Increment = 1,
     CurrentValue = Camera.FieldOfView,
     Callback = function(Value)
-        Camera.FieldOfView = Value
+        workspace.CurrentCamera.FieldOfView = Value
     end
 })
 
@@ -2250,10 +2319,15 @@ local pca = pads.ChildAdded:Connect(function(child)
     if dsm then
         if child.Name == "Seamine" then
             task.wait(3)
-            local ti = child:FindFirstChild("TouchInterest")
+            local ti = sm:FindFirstChild("TouchInterest")
+            local ls = sm:FindFirstChild("ClientMine")
 
             if ti then
                 ti:Destroy()
+                n += 1
+            end
+            if ls then
+                ls.Enabled = false
             end
         end
     end
@@ -2278,28 +2352,29 @@ local runLoop = RunService.Heartbeat:Connect(function()
     local char = getChar(plr)
     local root, hitbox = getRoot(char)
     local h = getHuman(char)
+    Camera = Camera or workspace.CurrentCamera
 
-    -- local auranow = tick()
-    -- if aura and auranow - lastAura > auraRATE then
-    --     lastAura = auranow
+--[[local auranow = tick()
+    if aura and auranow - lastAura > auraRATE then
+        lastAura = auranow
 
-    --     if #availableNormalGifts == 0 then
-    --         giftSelection = availableGoldenGifts
-    --     elseif #availableGoldenGifts == 0 then
-    --         giftSelection = availableNormalGifts
-    --     end
+        if #availableNormalGifts == 0 then
+            giftSelection = availableGoldenGifts
+        elseif #availableGoldenGifts == 0 then
+            giftSelection = availableNormalGifts
+        end
 
-    --     local newClose = getClosestGift(giftSelection)
+        local newClose = getClosestGift(giftSelection)
 
-    --     if newClose then
-    --         local dist = (root.Position - newClose.Position).Magnitude
+        if newClose then
+            local dist = (root.Position - newClose.Position).Magnitude
 
-    --         if dist <= 7.5 then
-    --             loopClosest = newClose
-    --             collectGift:FireServer(loopClosest)
-    --         end
-    --     end
-    -- end
+            if dist <= 7.5 then
+                loopClosest = newClose
+                collectGift:FireServer(loopClosest)
+            end
+        end
+     end]]
 
     if visibleHitbox then
         if root and hitbox then
@@ -2331,6 +2406,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
             hitbox.Position = root.Position
         end
     end
+
     if root and hitbox then
         hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
         if h and root.Position.Y <= workspace.KillVoid.Position.Y and h.Health > 0 then
@@ -2419,6 +2495,7 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
     local now = tick()
     if now - lastUpdate < RATE then return end
     lastUpdate = now
+    Camera = Camera or workspace.CurrentCamera
 
 
     if instrumentesp then
@@ -2602,6 +2679,12 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
 end)
 
 RunService:BindToRenderStep("Hazard", Enum.RenderPriority.Last.Value + 2, function()
+    if isDead(plr) then return end
+
+    local char = getChar(plr)
+    local root = getRoot(char)
+    if not char or not root then return end
+
     if pt then
         for _, trip in getActiveTripmines() do
             if trip.Transparency ~= 1 then
@@ -2612,6 +2695,43 @@ RunService:BindToRenderStep("Hazard", Enum.RenderPriority.Last.Value + 2, functi
                     local p = tripmineprots:FindFirstChild(uuid)
                     if p then
                         p.Position = trip.Position
+                    end
+                end
+            end
+        end
+    end
+
+    if pb and root then
+        for _, b in bullets:GetChildren() do
+            if b.Transparency ~= 1 then
+                protectBullet(b)
+
+                local uuid = b:GetAttribute("uuid")
+                if uuid then
+                    local p = bulletprots:FindFirstChild(uuid)
+                    if p then
+                        p.Position = b.Position
+                    end
+                end
+            end
+        end
+
+        for _, p in bulletprots:GetChildren() do
+            if p:IsA("BasePart") then
+                local offset = root.Position - p.Position
+                local dist = offset.Magnitude
+                local radius = p.Size.X / 2
+                local pushDir = offset.Unit
+
+                if dist < radius and isdirectionsafetopushfromguardianbullet(root.Position, pushDir) then
+                    root.CFrame += pushDir * 3
+                elseif dist < radius then --do perpendicular
+                    local altDir = Vector3.new(-pushDir.Z, 0, pushDir.X)
+
+                    if isdirectionsafetopushfromguardianbullet(root.Position, altDir) then
+                        root.CFrame += altDir * 3
+                    else
+                        root.Position = p.Position + Vector3.new(0, 10, 0) --fuck it
                     end
                 end
             end
@@ -2635,6 +2755,10 @@ function destroyGui()
     tripmineprots:Destroy()
     tpt:Set(false)
     print("tripmine protection off")
+
+    bulletprots:Destroy()
+    bpt:Set(false)
+    print("bullet protection off")
 
     local tn = 0
     for obj, line in pairs(tracers) do
