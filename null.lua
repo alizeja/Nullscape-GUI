@@ -2364,7 +2364,7 @@ local er = debugTab:CreateToggle({
     end
 })
 local er = debugTab:CreateToggle({
-    Name = "Disable All Notifications",
+    Name = "Enable All Notifications",
     CurrentValue = notifOn,
     Callback = function(Value)
         notifOn = Value
