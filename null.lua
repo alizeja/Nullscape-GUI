@@ -1044,7 +1044,8 @@ local function addKolonaToRound(int)
         k:Destroy()
         connections["kolona"] = nil
 
-        newInstances["kolonaVal"] = int
+        newInstances["kolonaVal"] = nil
+        int:Destroy()
     end)
 end
 local function addOperatorToRound(int)
@@ -1058,7 +1059,8 @@ local function addOperatorToRound(int)
         o:Destroy()
         connections["operator"] = nil
 
-        newInstances["operatorVal"] = int
+        newInstances["operatorVal"] = nil
+        int:Destroy()
     end)
 end
 local function addVoidbreakerToRound(int)
@@ -1072,7 +1074,8 @@ local function addVoidbreakerToRound(int)
         v:Destroy()
         connections["voidbreaker"] = nil
 
-        newInstances["voidbreakerVal"] = int
+        newInstances["voidbreakerVal"] = nil
+        int:Destroy()
     end)
 end
 
