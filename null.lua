@@ -2559,10 +2559,9 @@ local er = debugTab:CreateToggle({
         StarterGui:SetCore("ResetButtonCallback", Value)
     end
 })
-debugTab:CreateToggle({
+debugTab:CreateButton({
     Name = "Kill Character (Respawns in Intermission)",
-    CurrentValue = true,
-    Callback = function(Value)
+    Callback = function()
         events.Died:FireServer("Void", shared.LeftGroundWithinBellMethod, game.ReplicatedStorage.Level.Value)
     end
 })
