@@ -1962,7 +1962,7 @@ mapTab:CreateButton({
 
 mapTab:CreateSection("Hazards")
 local tpt = mapTab:CreateToggle({
-    Name = "Tripmine Protection",
+    Name = "Tripmine Protection (LAGGY ON VERY HIGH LEVELS)",
     CurrentValue = pt,
     Callback = function(Value)
         pt = Value
@@ -1973,7 +1973,7 @@ local tpt = mapTab:CreateToggle({
 })
 local dfca
 local nvi = mapTab:CreateToggle({
-    Name = "Disable Void Implosions (LAGGY)",
+    Name = "Disable Void Implosions",
     CurrentValue = dvi,
     Callback = function(Value)
         dvi = Value
@@ -2397,6 +2397,35 @@ keyTab:CreateKeybind({
     Callback = function(key)
         if not canEzDisableAllC then return end
         disableAll(false, true)
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Reset Double Jumps",
+    CurrentKeybind = "T",
+    Callback = function(key)
+        local char = getChar(plr)
+        local humanoid = char and getHuman(char)
+
+        if char and humanoid and not isDead(plr) then
+            humanoid.PlatformStand = true
+            task.wait(.01)
+            humanoid.PlatformStand = false
+        end
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Bring Jump Pad (ALSO DEACTIVATE RAZORBLOOM)",
+    CurrentKeybind = "Y",
+    Callback = function(key)
+        local pad = pads:FindFirstChild("JumpPad") or pads:FindFirstChild("GrapplePoint")
+        local root = getRoot(getChar(plr))
+
+        if pad and root and not isDead(plr) then
+            local pos = pad.Position
+            pad.Position = root.Position
+            task.wait(.01)
+            pad.Position = pos
+        end
     end
 })
 local canPress = true
