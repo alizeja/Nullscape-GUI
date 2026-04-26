@@ -1072,7 +1072,7 @@ local function handleEnemy(enemy)
     local waitingTime = 15
 
     if name == "ICBM" or name == "Telefragger" or name:find("Baby") then
-        waitingTime = 60 --wait a DAMN minute
+        waitingTime = 120 --wait two DAMN minutes
     end
 
     if auto_destroy[name] then
