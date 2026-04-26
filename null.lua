@@ -1069,13 +1069,10 @@ auto_destroy.RealityBreak = false
 
 local function handleEnemy(enemy)
     local name = enemy.Name
-    local waitingTime = 7.5
+    local waitingTime = 15
 
-    if name == "ICBM" or name == "Telefragger" then
-        waitingTime = 35
-    end
-    if name == "Springer" then
-        waitingTime = 15
+    if name == "ICBM" or name == "Telefragger" or name.find("Baby") then
+        waitingTime = 60 --wait a DAMN minute
     end
 
     if auto_destroy[name] then
@@ -2403,8 +2400,8 @@ local pca = pads.ChildAdded:Connect(function(child)
     if dsm then
         if child.Name == "Seamine" then
             task.wait(3)
-            local ti = sm:FindFirstChild("TouchInterest")
-            local ls = sm:FindFirstChild("ClientMine")
+            local ti = child:FindFirstChild("TouchInterest")
+            local ls = child:FindFirstChild("ClientMine")
 
             if ti then
                 ti:Destroy()
