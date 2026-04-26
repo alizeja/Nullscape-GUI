@@ -132,8 +132,8 @@ local Window = Rayfield:CreateWindow({
    ShowText = "Null!",
 
    ToggleUIKeybind = "K",
-   DisableRayfieldPrompts = false,
-   DisableBuildWarnings = false
+   DisableRayfieldPrompts = true,
+   DisableBuildWarnings = true
 })
 
 function notif(text: string, title: string, dur: number)
@@ -322,43 +322,39 @@ local function refreshGifts(skip, golden)
     local rootPos = root.Position
 
     for i = 1, SCAN_SIZE do
-        task.spawn(function()
-            local gift = normalList[scanIndex]
-            if not gift then
-                scanIndex = 1
-                return
+        local gift = normalList[scanIndex]
+        if not gift then
+            scanIndex = 1
+            return
+        end
+
+        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+            local dist = (rootPos - gift.Position).Magnitude
+
+            if dist <= 500 then
+                availableNormalGifts[#availableNormalGifts+1] = gift
             end
+        end
 
-            if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
-                local dist = (rootPos - gift.Position).Magnitude
-
-                if dist <= 500 then
-                    availableNormalGifts[#availableNormalGifts+1] = gift
-                end
-            end
-
-            scanIndex += 1
-        end)
+        scanIndex += 1
     end
 
     for i = 1, SCAN_SIZE do
-        task.spawn(function()
-            local gift = goldenList[scanIndexTwo]
-            if not gift then
-                scanIndexTwo = 1
-                return
+        local gift = goldenList[scanIndexTwo]
+        if not gift then
+            scanIndexTwo = 1
+            return
+        end
+
+        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+            local dist = (rootPos - gift.Position).Magnitude
+
+            if dist <= 500 then
+                availableGoldenGifts[#availableGoldenGifts+1] = gift
             end
+        end
 
-            if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
-                local dist = (rootPos - gift.Position).Magnitude
-
-                if dist <= 500 then
-                    availableGoldenGifts[#availableGoldenGifts+1] = gift
-                end
-            end
-
-            scanIndexTwo += 1
-        end)
+        scanIndexTwo += 1
     end
 end
 
@@ -408,7 +404,6 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
         end
     end
     for _, enemy in activeEnemies do
-        if enemy:HasTag(".Disabled") then continue end
         local pos = enemy.Position
         local size = enemy.Size
         local minMx, maxMx = pos.X - size.X/2, pos.X + size.X/2
@@ -594,11 +589,6 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                     n += 1
                 end
             end
-                    
-            if not sameenemy:HasTag(".Disabled") then
-               sameenemy:AddTag(".Disabled")
-            end
-
             table.insert(enemiesFound, sameenemy)
         end
 
@@ -1085,7 +1075,7 @@ local function handleEnemy(enemy)
         waitingTime = 35
     end
     if name == "Springer" then
-        waitingTime = 10
+        waitingTime = 15
     end
 
     if auto_destroy[name] then
@@ -1846,7 +1836,7 @@ local dfb = mapTab:CreateToggle({
     Callback = function(Value)
         nfb = Value
 
-        if nfb and beacons:FindFirstChild("Beacon") then
+        if nfb and beacons:FindFirstChild("BeaconMirage") then
             for _, b in beacons:GetChildren() do
                 if b.Name == "BeaconMirage" then
                     b:Destroy()
@@ -2364,7 +2354,7 @@ local er = debugTab:CreateToggle({
     end
 })
 local er = debugTab:CreateToggle({
-    Name = "Disable All Notifications",
+    Name = "Enable All Notifications",
     CurrentValue = notifOn,
     Callback = function(Value)
         notifOn = Value
@@ -2567,7 +2557,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
     
-    if nfb and beacons:FindFirstChild("Beacon") then
+    if nfb and beacons:FindFirstChild("BeaconMirage") then
         for _, b in beacons:GetChildren() do
             if b.Name == "BeaconMirage" then
                 b:Destroy()
