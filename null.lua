@@ -50,6 +50,7 @@ local pads = workspace.JumpPads
 local code = ReplicatedStorage.CodeVal
 local curses = ReplicatedStorage.CurseFolder.Curses
 local gcurses = ReplicatedStorage.GreaterCurseFolder.Curses
+local enemiesFolder = ReplicatedStorage.EnemyFolder
 local upgrades = ReplicatedStorage.UpgradeFolder.Upgrades
 local beacons = workspace.Beacons
 local destroyFolder = workspace.DestroyFolder
@@ -121,6 +122,7 @@ local clientenemies = {
 local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
+local newInstances = {}
 local cgb
 local mb
 
@@ -583,7 +585,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         for _, sameenemy in list:GetChildren() do
             if sameenemy.Name ~= name then continue end
 
-            for _, part in sameenemy:GetChildren() do
+            for _, part in sameenemy:GetDescendants() do
                 if part.Name == remove then
                     part:Destroy()
                     n += 1
@@ -672,6 +674,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
         end,
         Skinwalker = function(name, willDestroy, willBreakAI)
+            print("it's skinwalker")
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
                 if failNotif == true and notifOn then
@@ -686,6 +689,11 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
             n += loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers)
             n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
+            n += loopEnemies("Skinwalker2", "TouchInterest", skinwalkers)
+            n += loopEnemies("Skinwalker3", "TouchInterest", skinwalkers)
+            n += loopEnemies("Skinwalker4", "TouchInterest", skinwalkers)
+            n += loopEnemies("CrayonSkinwalker", "TouchInterest", skinwalkers)
+            n += loopEnemies("TallCrayonSkinwalker", "TouchInterest", skinwalkers)
 
             if n > 0 then
                 if notifOn then
@@ -771,6 +779,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         end
     }
 
+    print("disabling:", enemyName)
     if disableFunction[enemyName] then
         return disableFunction[enemyName](enemyName, willDestroy, willBreakAI)
     else
@@ -1022,8 +1031,169 @@ enemyTab:CreateButton({
     end
 })
 
-enemyTab:CreateDivider()
+enemyTab:CreateSection("WHY")
 
+local function addKolonaToRound(int)
+    local k = enemiesFolder.Enemies.Kolona:Clone()
+    k.Parent = enemies
+    k.Kolona_AI.Enabled = true
+    newInstances["kolona"] = k
+
+    connections["kolona"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["kolona"] = nil
+        k:Destroy()
+        connections["kolona"] = nil
+
+        newInstances["kolonaVal"] = int
+    end)
+end
+local function addOperatorToRound(int)
+    local o = enemiesFolder.Enemies.Operator:Clone()
+    o.Parent = enemies
+    o.Operator_AI.Enabled = true
+    newInstances["operator"] = o
+
+    connections["operator"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["operator"] = nil
+        o:Destroy()
+        connections["operator"] = nil
+
+        newInstances["operatorVal"] = int
+    end)
+end
+local function addVoidbreakerToRound(int)
+    local v = enemiesFolder.Enemies.Voidbreaker:Clone()
+    v.Parent = enemies
+    v.Voidbreaker_AI.Enabled = true
+    newInstances["voidbreaker"] = v
+
+    connections["voidbreaker"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["voidbreaker"] = nil
+        v:Destroy()
+        connections["voidbreaker"] = nil
+
+        newInstances["voidbreakerVal"] = int
+    end)
+end
+
+
+enemyTab:CreateButton({
+    Name = "Add One Husk",
+    Callback = function()
+        if not ReplicatedStorage.InRound.Value then
+            notif("YOU'RE NOT EVEN IN A ROUND, WHY", "bro.")
+        end
+
+        local s = enemiesFolder.Enemies.Skinwalker:Clone()
+        s.Parent = enemies
+
+        local sco
+        sco = ReplicatedStorage.InRound.Changed:Once(function()
+            s:Destroy()
+            local c = table.find(connections, sco)
+            if connections[c] ~= nil then
+                connections[c] = nil
+            end
+        end)
+        table.insert(connections, sco)
+
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Kolona This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Kolona") then
+            local int = Instance.new("IntValue")
+            int.Name = "Kolona"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["kolonaVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addKolonaToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Kolona has been <font color=\"#ff0000\">added</font>."))
+            else
+                local o = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addKolonaToRound(int)
+                end)
+                connections["kolona"] = o
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Kolona has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Kolona is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Operator This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Operator") then
+            local int = Instance.new("IntValue")
+            int.Name = "Operator"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["operatorVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addOperatorToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Operator has been <font color=\"#ff0000\">added</font>."))
+            else
+                local o = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addOperatorToRound(int)
+                end)
+                connections["operator"] = o
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Operator has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Operator is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Voidbreaker This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Voidbreaker") then
+            local int = Instance.new("IntValue")
+            int.Name = "Voidbreaker"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["voidbreakerVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addVoidbreakerToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Voidbreaker has been <font color=\"#ff0000\">added</font>."))
+            else
+                local v = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addVoidbreakerToRound(int)
+                end)
+                connections["voidbreaker"] = v
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Voidbreaker has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Voidbreaker is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+
+enemyTab:CreateDivider()
 
 local auto_disable = {}
 auto_disable.Bell = false
@@ -1033,6 +1203,7 @@ auto_disable.Springer = false
 auto_disable.Baby = false
 auto_disable.Flesh = false
 auto_disable.nilEnemy = false
+auto_disable.nilMirage = false
 auto_disable.Telefragger = false
 auto_disable.ShadowBaby = false
 
@@ -1045,9 +1216,11 @@ auto_break.ICBM = false
 auto_break.Baby = false
 auto_break.Flesh = false
 auto_break.nilEnemy = false
+auto_break.nilMirage = false
 auto_break.Telefragger = false
 auto_break.ShadowBaby = false
 auto_break.RealityBreak = false
+auto_break.Celestial = false
 
 local auto_destroy = {}
 auto_destroy.Bell = false
@@ -1060,6 +1233,7 @@ auto_destroy.Flesh = false
 auto_destroy.Operator = false
 auto_destroy.Kolona = false
 auto_destroy.nilEnemy = false
+auto_destroy.nilMirage = false
 auto_destroy.Telefragger = false
 auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
@@ -1109,6 +1283,7 @@ local function handleEnemy(enemy)
         repeat
             if tick() - start >= waitingTime then break end
             didDisable = disableEnemy(name, false, false, false)
+            print("disable loop active on:",name)
             task.wait(1)
         until didDisable == true
     end
@@ -1419,6 +1594,41 @@ enemyTab:CreateToggle({
         end
     end
 })
+enemyTab:CreateSection("Nil Mirage (Fake NILs)")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.nilMirage,
+    Callback = function(v)
+        auto_disable.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Break AI",
+    CurrentValue = auto_break.nilMirage,
+    Callback = function(v)
+        auto_break.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.nilMirage,
+    Callback = function(v)
+        auto_destroy.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+
 
 enemyTab:CreateSection("Telefragger")
 enemyTab:CreateToggle({
@@ -2350,6 +2560,13 @@ local er = debugTab:CreateToggle({
         StarterGui:SetCore("ResetButtonCallback", Value)
     end
 })
+debugTab:CreateToggle({
+    Name = "Kill Character (Respawns in Intermission)",
+    CurrentValue = true,
+    Callback = function(Value)
+        events.Died:FireServer("Void", shared.LeftGroundWithinBellMethod, game.ReplicatedStorage.Level.Value)
+    end
+})
 local er = debugTab:CreateToggle({
     Name = "Enable All Notifications",
     CurrentValue = notifOn,
@@ -2384,7 +2601,7 @@ for _, enemy in ipairs(enemies:GetChildren()) do
 end
 local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
     enemy.Name = "Skinwalker"
-
+    print("skinwalker added, handling")
     handleEnemy(enemy)
 end)
 table.insert(connections, skwca)
@@ -2868,6 +3085,12 @@ function destroyGui()
         c:Disconnect()
     end
     partsConnected = nil
+
+    print("destroying "..#newInstances.." new instances")
+    for _, i in newInstances do
+        i:Destroy()
+    end
+    newInstances = nil
 
     vh:Set(false)
     print("visible hitbox off")
