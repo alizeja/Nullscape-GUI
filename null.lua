@@ -1798,11 +1798,10 @@ enemyTab:CreateToggle({
     end
 })
 enemyTab:CreateToggle({
-    Name = "Destroy Celestial (NOT ADDED)",
-    CurrentValue = false,
-    Callback = function()
-        notif("Doom.", "Celestial")
-        warn("Bloom.")
+    Name = "Destroy Celestial",
+    CurrentValue = auto_destroy.Celestial,
+    Callback = function(v)
+        auto_destroy.Celestial = v
     end
 })
 
