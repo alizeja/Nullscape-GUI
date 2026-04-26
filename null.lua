@@ -1071,7 +1071,7 @@ local function handleEnemy(enemy)
     local name = enemy.Name
     local waitingTime = 15
 
-    if name == "ICBM" or name == "Telefragger" or name.find("Baby") then
+    if name == "ICBM" or name == "Telefragger" or name:find("Baby") then
         waitingTime = 60 --wait a DAMN minute
     end
 
