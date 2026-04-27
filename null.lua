@@ -1243,6 +1243,7 @@ auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
 auto_destroy.Scrapmaw = false
 auto_destroy.RealityBreak = false
+auto_destroy.Celestial = false
 
 local function handleEnemy(enemy)
     local name = enemy.Name
@@ -1793,11 +1794,10 @@ enemyTab:CreateToggle({
 })
 
 enemyTab:CreateToggle({
-    Name = "Disable Celestial (NOT ADDED)",
-    CurrentValue = false,
-    Callback = function()
-        notif("Bloom.", "Celestial")
-        warn("Doom.")
+    Name = "Break Celestial AI",
+    CurrentValue = auto_break.Celestial,
+    Callback = function(v)
+        auto_break.Celestial = v
     end
 })
 enemyTab:CreateToggle({
