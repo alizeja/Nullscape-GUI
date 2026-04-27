@@ -2428,6 +2428,21 @@ keyTab:CreateKeybind({
         end
     end
 })
+keyTab:CreateKeybind({
+    Name = "Bring Tria Orb",
+    CurrentKeybind = "Two",
+    Callback = function(key)
+        local pad = pads:FindFirstChild("TriaOrb")
+        local root = getRoot(getChar(plr))
+
+        if pad and root and not isDead(plr) then
+            local pos = pad.Position
+            pad.Position = root.Position
+            task.wait(.01)
+            pad.Position = pos
+        end
+    end
+})
 local canPress = true
 keyTab:CreateKeybind({
     Name = "Instantly Grapple to Nearest Jump Pad (Grappler Class Needed)",
