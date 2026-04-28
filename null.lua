@@ -16,6 +16,9 @@ function toClipboard(txt)
 		notif("Your exploit doesn't have the ability to use the clipboard", "Clipboard")
 	end
 end
+
+
+
 --------------------------------------------------------
 
 local Players = game:GetService("Players")
@@ -28,6 +31,21 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local PlaceId, JobId = game.PlaceId, game.JobId
+
+------------------------------------------------
+local theparthatdestroystheguiifthepartisdestroyedexistsalready = ReplicatedStorage:FindFirstChild("DESTROYNULLGUI")
+
+if theparthatdestroystheguiifthepartisdestroyedexistsalready then
+    theparthatdestroystheguiifthepartisdestroyedexistsalready:Destroy()
+    
+    StarterGui:SetCore("SendNotification", {
+        Title = "NULL GUI PRE-EXECUTE",
+        Text = "Null GUI already executed! Destroying old GUI...",
+        Duration = 3
+    })
+    task.wait(1.5)
+end
+------------------------------------------------
 
 local plr = Players.LocalPlayer
 
@@ -584,10 +602,16 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
         for _, sameenemy in list:GetChildren() do
             if sameenemy.Name ~= name then continue end
+            if sameenemy:GetAttribute("Disabled") == true then
+                n += 1
+                table.insert(enemiesFound, sameenemy)
+                continue
+            end
 
             for _, part in sameenemy:GetDescendants() do
                 if part.Name == remove then
                     part:Destroy()
+                    sameenemy:SetAttribute("Disabled", true)
                     n += 1
                 end
             end
@@ -625,7 +649,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 end
 
                 if willBreakAI then
-                        for _, e in pairs(enemiesFound) do
+                    for _, e in pairs(enemiesFound) do
                         local clientScript = e:FindFirstChild(name.."_ClientAI")
                     
                         if clientScript then
@@ -637,44 +661,12 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 return true
             else
                 if failNotif == true and notifOn then
-                    print(failNotif)
                     notif(name.." cannot be disabled, or already disabled.", "Enemy")
                 end
                 return false
             end
         end,
-        Bell = function(name, willDestroy, willBreakAI)
-            if willDestroy then
-                return destroyEnemy(name)
-            end
-            local n, enemiesFound = loopEnemies(name)
-
-            if n > 0 then
-                if notifOn then
-                    notif(tostring(n).." Bell(s) disabled.", "Enemy")
-                end
-
-                if willBreakAI then
-                        for _, b in pairs(enemiesFound) do
-                        local clientScript = b:FindFirstChild(name.."_ClientAI")
-                    
-                        if clientScript then
-                            clientScript.Enabled = false
-                        end
-                    end
-                end
-
-                return true
-            else
-                if failNotif == true and notifOn then
-                    notif("Bell cannot be disabled, or already disabled.", "Enemy")
-                end
-                return false
-            end
-
-        end,
         Skinwalker = function(name, willDestroy, willBreakAI)
-            print("it's skinwalker")
             local skinwalkers = workspace.Skinwalkers
             if #skinwalkers:GetChildren() == 0 then
                 if failNotif == true and notifOn then
@@ -718,7 +710,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                     end
 
                     if willBreakAI then
-                            for _, s in pairs(enemiesFound) do
+                        for _, s in pairs(enemiesFound) do
                             local clientScript = s:FindFirstChild("Springer_ClientAI")
 
                             if clientScript then
@@ -740,7 +732,12 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         end,
         ICBM = function(name, willDestroy, willBreakAI)
             if not willDestroy then
-                local _, enemiesFound = loopEnemies(name)
+                local enemiesFound = {}
+                for _, e in enemies:GetChildren() do
+                    if e.Name == name or e.Name == "ICBM" then
+                        table.insert(enemiesFound, e)
+                    end
+                end
 
                 if #enemiesFound > 0 then
                     local n = 0
@@ -748,7 +745,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                     for _, s in pairs(enemiesFound) do
                         local clientScript = s:FindFirstChild("ICBM_ClientAI")
 
-                        if clientScript and clientScript.Enabled == true then
+                        if clientScript then
                             clientScript.Enabled = false
                             n += 1
                         end
@@ -779,7 +776,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         end
     }
 
-    print("disabling:", enemyName)
+    print("disabling:", enemyName, "(NULL GUI)")
     if disableFunction[enemyName] then
         return disableFunction[enemyName](enemyName, willDestroy, willBreakAI)
     else
@@ -803,9 +800,9 @@ local function GetClosestPad()
     local dist = 100
 
     for _, part in pads:GetChildren() do
-        if part.Color == badColor then print("bad color") continue end
+        if part.Color == badColor then print("bad color (NULL GUI)") continue end
         local mag = (root.Position - part.Position).Magnitude
-        if mag > dist then print(mag, ">", dist, "part too far") continue end
+        if mag > dist then print(mag, ">", dist, "part too far (NULL GUI)") continue end
 
         local origin = root.Position
         local direction = part.Position - origin
@@ -1255,7 +1252,7 @@ local function handleEnemy(enemy)
 
     if auto_destroy[name] then
         local start = tick()
-        local didDestroy = disableEnemy(name, true, false, false)
+        local didDestroy
 
         repeat
             if tick() - start >= waitingTime then break end
@@ -1269,7 +1266,7 @@ local function handleEnemy(enemy)
         end
 
         local start = tick()
-        local didBreak = disableEnemy(name, false, true, false)
+        local didBreak
 
         repeat
             if tick() - start >= waitingTime then break end
@@ -1282,12 +1279,11 @@ local function handleEnemy(enemy)
         end
 
         local start = tick()
-        local didDisable = disableEnemy(name, false, false, false)
+        local didDisable
 
         repeat
             if tick() - start >= waitingTime then break end
             didDisable = disableEnemy(name, false, false, false)
-            print("disable loop active on:",name)
             task.wait(1)
         until didDisable == true
     end
@@ -2400,16 +2396,14 @@ keyTab:CreateKeybind({
     end
 })
 keyTab:CreateKeybind({
-    Name = "Reset Double Jumps",
+    Name = "Reset Double Jumps/Ability",
     CurrentKeybind = "T",
     Callback = function(key)
         local char = getChar(plr)
         local humanoid = char and getHuman(char)
 
         if char and humanoid and not isDead(plr) then
-            humanoid.PlatformStand = true
-            task.wait(.01)
-            humanoid.PlatformStand = false
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed) --im so dumb this worked the whole time
         end
     end
 })
@@ -2646,7 +2640,6 @@ for _, enemy in ipairs(enemies:GetChildren()) do
 end
 local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
     enemy.Name = "Skinwalker"
-    print("skinwalker added, handling")
     handleEnemy(enemy)
 end)
 table.insert(connections, skwca)
@@ -3177,5 +3170,11 @@ function destroyGui()
 end
 
 refreshGifts(true)
+
+local thepartthatdestroystheguiifthepartisdestroyed = Instance.new("Part")
+thepartthatdestroystheguiifthepartisdestroyed.Name = "DESTROYNULLGUI"
+thepartthatdestroystheguiifthepartisdestroyed.Parent = ReplicatedStorage
+
+thepartthatdestroystheguiifthepartisdestroyed.Destroying:Connect(destroyGui)
 
 notif("Null GUI Executed", "Null GUI")
