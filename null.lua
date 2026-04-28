@@ -37,7 +37,7 @@ local theparthatdestroystheguiifthepartisdestroyedexistsalready = ReplicatedStor
 
 if theparthatdestroystheguiifthepartisdestroyedexistsalready then
     theparthatdestroystheguiifthepartisdestroyedexistsalready:Destroy()
-    
+
     StarterGui:SetCore("SendNotification", {
         Title = "NULL GUI PRE-EXECUTE",
         Text = "Null GUI already executed! Destroying old GUI...",
@@ -592,38 +592,56 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
     if willBreakAI == nil then
         willBreakAI = false
     end
-    
+
     local function loopEnemies(name, remove, list)
         list = list or enemies
         remove = remove or "TouchInterest"
-        local n = 0
 
+        local n = 0
+        local total = 0
         local enemiesFound = {}
 
         for _, sameenemy in list:GetChildren() do
-            if sameenemy.Name ~= name then continue end
-            if sameenemy:GetAttribute("Disabled") == true then
-                n += 1
-                table.insert(enemiesFound, sameenemy)
+            if sameenemy.Name ~= name then
                 continue
             end
+
+            local loaded = sameenemy:FindFirstChild(remove, true) or sameenemy:FindFirstChild(name.."_ClientAI", true) or sameenemy:GetAttribute("Disabled") == true
+            
+            if not loaded then
+                continue
+            end
+
+            total += 1
+            table.insert(enemiesFound, sameenemy)
+
+            if sameenemy:GetAttribute("Disabled") == true then
+                n += 1
+                continue
+            end
+
+            local disabledThisEnemy = false
 
             for _, part in sameenemy:GetDescendants() do
                 if part.Name == remove then
                     part:Destroy()
-                    sameenemy:SetAttribute("Disabled", true)
-                    n += 1
+                    disabledThisEnemy = true
                 end
             end
-            table.insert(enemiesFound, sameenemy)
+
+            if disabledThisEnemy then
+                sameenemy:SetAttribute("Disabled", true)
+                n += 1
+            end
         end
 
-        return n, enemiesFound
+        return n, total, enemiesFound
     end
+
     local function destroyEnemy(name, list)
         list = list or enemies
 
-        for _,sameenemy in list:GetChildren() do
+        for _, sameenemy in list:GetChildren() do
             if sameenemy.Name == name then
                 sameenemy:Destroy()
             end
@@ -632,18 +650,21 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         if notifOn then
             notif(name.." disabled. (destroyed)", "Enemy")
         end
+
         return true
     end
 
     local disableFunction = {
         Basic = function(name, willDestroy, willBreakAI)
-            if not name then return end --how the fuck is there no names
+            if not name then return end
+
             if willDestroy then
                 return destroyEnemy(name)
             end
-            local n, enemiesFound = loopEnemies(name)
 
-            if n > 0 then
+            local n, total, enemiesFound = loopEnemies(name)
+
+            if total > 0 and n >= total then
                 if notifOn then
                     notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
                 end
@@ -651,7 +672,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 if willBreakAI then
                     for _, e in pairs(enemiesFound) do
                         local clientScript = e:FindFirstChild(name.."_ClientAI")
-                    
+
                         if clientScript then
                             clientScript.Enabled = false
                         end
@@ -661,50 +682,56 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 return true
             else
                 if failNotif == true and notifOn then
-                    notif(name.." cannot be disabled, or already disabled.", "Enemy")
+                    notif(name.." cannot be fully disabled yet.", "Enemy")
                 end
+
                 return false
             end
         end,
+
         Skinwalker = function(name, willDestroy, willBreakAI)
             local skinwalkers = workspace.Skinwalkers
+
             if #skinwalkers:GetChildren() == 0 then
                 if failNotif == true and notifOn then
                     notif("Husk isn't following you yet.", "Enemy")
                 end
                 return false
             end
+
             if willDestroy then
                 return destroyEnemy(name, skinwalkers)
             end
 
-            local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
-            n += loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers)
-            n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
-            n += loopEnemies("Skinwalker2", "TouchInterest", skinwalkers)
-            n += loopEnemies("Skinwalker3", "TouchInterest", skinwalkers)
-            n += loopEnemies("Skinwalker4", "TouchInterest", skinwalkers)
-            n += loopEnemies("CrayonSkinwalker", "TouchInterest", skinwalkers)
-            n += loopEnemies("TallCrayonSkinwalker", "TouchInterest", skinwalkers)
+            local n = 0
+            local total = 0
 
-            if n > 0 then
+            local a,b = loopEnemies("Skinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker1", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker2", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker3", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker4", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("CrayonSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("TallCrayonSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+
+            if total > 0 and n >= total then
                 if notifOn then
                     notif(tostring(n).." Husk(s) disabled.", "Enemy")
                 end
                 return true
-            else
-                if failNotif == true and notifOn then
-                    notif("Husks are already disabled.", "Enemy")
-                end
-                return true
             end
+
+            return false
         end,
+
         Springer = function(name, willDestroy, willBreakAI)
             if not willDestroy then
                 loopEnemies(name, "SpringerShockwave")
-                local n, enemiesFound = loopEnemies(name, "DemonShockwave")
+                loopEnemies(name, "DemonShockwave")
+                local n, total, enemiesFound = loopEnemies(name, "Kill")
 
-                if n > 0 then
+                if total > 0 and n >= total then
                     if notifOn then
                         notif(tostring(n).." Springer(s) disabled.", "Enemy")
                     end
@@ -714,25 +741,46 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                             local clientScript = s:FindFirstChild("Springer_ClientAI")
 
                             if clientScript then
+                                if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
+                                        local c
+                                        c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                        if not clientScript.Parent or not s.Parent then
+                                            c:Disconnect()
+                                            return
+                                        end
+
+                                        if clientScript.Enabled == true then
+                                            task.defer(function()
+                                                if clientScript.Parent and s.Parent then
+                                                    clientScript.Enabled = false
+                                                end
+                                            end)
+
+                                            c:Disconnect()
+                                        end
+                                    end)
+                                end
+                                
                                 clientScript.Enabled = false
+                                s:SetAttribute("Disabled", true)
+                                n += 1
                             end
                         end
                     end
 
                     return true
-                else
-                    if failNotif == true and notifOn then
-                        notif("No Springers left to disable.", "Enemy")
-                    end
-                    return true
                 end
+
+                return false
             else
                 return destroyEnemy(name)
             end
         end,
+
         ICBM = function(name, willDestroy, willBreakAI)
             if not willDestroy then
                 local enemiesFound = {}
+
                 for _, e in enemies:GetChildren() do
                     if e.Name == name or e.Name == "ICBM" then
                         table.insert(enemiesFound, e)
@@ -746,37 +794,49 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                         local clientScript = s:FindFirstChild("ICBM_ClientAI")
 
                         if clientScript then
+                            if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
+                                    local c
+                                    c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                    if not clientScript.Parent or not s.Parent then
+                                        c:Disconnect()
+                                        return
+                                    end
+
+                                    if clientScript.Enabled == true then
+                                        task.defer(function()
+                                            if clientScript.Parent and s.Parent then
+                                                clientScript.Enabled = false
+                                            end
+                                        end)
+
+                                        c:Disconnect()
+                                    end
+                                end)
+                            end
+
                             clientScript.Enabled = false
+                            s:SetAttribute("Disabled", true)
                             n += 1
                         end
                     end
 
-                    if n > 0 and notifOn then
-                        notif(tostring(n).." ICBM(s) disabled.", "Enemy")
-                    elseif failNotif == true and notifOn then
-                        notif("No ICBMs left to disable.", "Enemy")
-                    end
-                    return true
+                    return n >= #enemiesFound
                 end
+
+                return false
             else
                 return destroyEnemy(name)
             end
         end,
-        Kolona = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Operator = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Voidbreaker = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Scrapmaw = function(name, willDestroy, willBreakAI)
-            return destroyEnemy(name)
-        end
+
+        Kolona = function(name) return destroyEnemy(name) end,
+        Operator = function(name) return destroyEnemy(name) end,
+        Voidbreaker = function(name) return destroyEnemy(name) end,
+        Scrapmaw = function(name) return destroyEnemy(name) end
     }
 
     print("disabling:", enemyName, "(NULL GUI)")
+
     if disableFunction[enemyName] then
         return disableFunction[enemyName](enemyName, willDestroy, willBreakAI)
     else
@@ -1244,10 +1304,10 @@ auto_destroy.Celestial = false
 
 local function handleEnemy(enemy)
     local name = enemy.Name
-    local waitingTime = 15
+    local waitingTime = 25
 
     if name == "ICBM" or name == "Telefragger" or name:find("Baby") then
-        waitingTime = 120 --wait two DAMN minutes
+        waitingTime = 75 --lowered to 75
     end
 
     if auto_destroy[name] then
@@ -1257,8 +1317,7 @@ local function handleEnemy(enemy)
         repeat
             if tick() - start >= waitingTime then break end
             didDestroy = disableEnemy(name, true, false, false)
-            disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
-            task.wait(1)
+            task.wait(.2)
         until didDestroy == true
     elseif auto_break[name] then
         if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
@@ -1271,7 +1330,7 @@ local function handleEnemy(enemy)
         repeat
             if tick() - start >= waitingTime then break end
             didBreak = disableEnemy(name, false, true, false)
-            task.wait(1)
+            task.wait(.2)
         until didBreak == true
     elseif auto_disable[name] then
         if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
@@ -1284,7 +1343,7 @@ local function handleEnemy(enemy)
         repeat
             if tick() - start >= waitingTime then break end
             didDisable = disableEnemy(name, false, false, false)
-            task.wait(1)
+            task.wait(.2)
         until didDisable == true
     end
 
@@ -2648,7 +2707,9 @@ local eca = enemies.ChildAdded:Connect(function(enemy)
         enemy:Destroy()
     end
 
-    handleEnemy(enemy)
+    task.spawn(function()
+        handleEnemy(enemy)
+    end)
 end)
 table.insert(connections, eca)
 local pca = pads.ChildAdded:Connect(function(child)
