@@ -976,7 +976,7 @@ mainTab:CreateButton({
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
 local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: boolean)
-    local allenemies = updateEnemySelection()
+    local allenemies = enemies:GetChildren()
     if not allenemies or #allenemies == 0 then
         if notifOn then
             notif("No enemies available.", "Not found")
