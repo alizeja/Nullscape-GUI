@@ -138,6 +138,7 @@ local clientenemies = {
     "Voidbreaker",
     "Skinwalker",
     "Operator",
+    "Scrapmaw"
 }
 
 
