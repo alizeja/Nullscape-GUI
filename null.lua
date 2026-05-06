@@ -66,6 +66,7 @@ local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
 local pads = workspace.JumpPads
 local code = ReplicatedStorage.CodeVal
+local music = ReplicatedStorage.MusicVal
 local curses = ReplicatedStorage.CurseFolder.Curses
 local gcurses = ReplicatedStorage.GreaterCurseFolder.Curses
 local enemiesFolder = ReplicatedStorage.EnemyFolder
@@ -115,6 +116,9 @@ local canEzDisableAllC = true
 local canEzCollectNormal = true
 local canEzCollectGolden = true
 local canEzCollectMedal = true
+local canFullReset = true
+local canBringPad = true
+local canBringTria = true
 local av = false
 local noice = false
 local noflesh = false
@@ -170,6 +174,7 @@ local mapTab = Window:CreateTab("Map")
 local plrTab = Window:CreateTab("Player")
 local visualTab = Window:CreateTab("Visual")
 local keyTab = Window:CreateTab("Keybinds")
+local musicTab = Window:CreateTab("Music")
 local debugTab = Window:CreateTab("Debug")
 
 local function safeFind(root, path)
@@ -1135,6 +1140,21 @@ local function addVoidbreakerToRound(int)
         int:Destroy()
     end)
 end
+local function addScrapmawToRound(int)
+    local v = enemiesFolder.Enemies.Scrapmaw:Clone()
+    v.Parent = enemies
+    v.Scrapmaw_AI.Enabled = true
+    newInstances["scrapmaw"] = v
+
+    connections["scrapmaw"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["scrapmaw"] = nil
+        v:Destroy()
+        connections["scrapmaw"] = nil
+
+        newInstances["scrapmawVal"] = nil
+        int:Destroy()
+    end)
+end
 
 
 enemyTab:CreateButton({
@@ -1248,6 +1268,37 @@ enemyTab:CreateButton({
         else
             if notifOn then
                 notif("Voidbreaker is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Scrapmaw This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Scrapmaw") then
+            local int = Instance.new("IntValue")
+            int.Name = "Scrapmaw"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["scrapmawVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addScrapmawToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Scrapmaw has been <font color=\"#ff0000\">added</font>."))
+            else
+                local v = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addScrapmawToRound(int)
+                end)
+                connections["scrapmaw"] = v
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Scrapmaw has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Scrapmaw is already here or destroyed.", "erm.")
             end
         end
     end
@@ -2458,6 +2509,7 @@ keyTab:CreateKeybind({
     Name = "Reset Double Jumps/Ability",
     CurrentKeybind = "T",
     Callback = function(key)
+        if not canFullReset then return end
         local char = getChar(plr)
         local humanoid = char and getHuman(char)
 
@@ -2470,7 +2522,8 @@ keyTab:CreateKeybind({
     Name = "Bring Jump Pad (ALSO DEACTIVATE RAZORBLOOM)",
     CurrentKeybind = "Y",
     Callback = function(key)
-        local pad = pads:FindFirstChild("JumpPad") or pads:FindFirstChild("GrapplePoint")
+        if not canBringPad then return end
+        local pad = pads:FindFirstChild("GrapplePoint") or pads:FindFirstChild("JumpPad")
         local root = getRoot(getChar(plr))
 
         if pad and root and not isDead(plr) then
@@ -2485,6 +2538,7 @@ keyTab:CreateKeybind({
     Name = "Bring Tria Orb",
     CurrentKeybind = "Two",
     Callback = function(key)
+        if not canBringTria then return end
         local pad = pads:FindFirstChild("TriaOrb")
         local root = getRoot(getChar(plr))
 
@@ -2611,6 +2665,27 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
+    Name = "Disable Reset Double Jumps/Ability Keybind",
+    CurrentValue = canFullReset,
+    Callback = function(Value)
+        canFullReset = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Disable Bring Jump Pad Keybind",
+    CurrentValue = canBringPad,
+    Callback = function(Value)
+        canBringPad = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Disable Bring Tria Orb Keybind",
+    CurrentValue = canBringTria,
+    Callback = function(Value)
+        canBringTria = Value
+    end
+})
+keyTab:CreateToggle({
     Name = "Instant Grapple Keybind",
     CurrentValue = canInstaGrapple,
     Callback = function(Value)
@@ -2638,6 +2713,72 @@ keyTab:CreateToggle({
 --         canToggleAura = Value
 --     end
 -- })
+
+--==--==--==--==--==--==--==--==--== MUSIC~~~
+local musicFolder = game:GetService("SoundService").MusicFolder
+local currentCustom
+local customPlaying = false
+
+local function stopCurrentMusic()
+    for _, s in musicFolder:GetDescendants() do
+        if s:IsA("Sound") and s.Playing then
+            s:Stop()
+        end
+    end
+
+    local current = music.Value
+    if current == nil then return end
+
+    current:Stop()
+    music.Value = nil
+    currentCustom = nil
+    customPlaying = false
+end
+local function playMusic(themusic: Sound)
+    stopCurrentMusic()
+
+    customPlaying = true
+    themusic:Play()
+    music.Value = themusic
+    currentCustom = themusic
+end
+
+musicTab:CreateButton({
+    Name = "Stop Current Music",
+    Callback = function()
+        stopCurrentMusic()
+    end
+})
+musicTab:CreateDivider()
+
+for _, sof in musicFolder:GetChildren() do
+    if sof:IsA("Sound") then
+        musicTab:CreateButton({
+            Name = "Play "..sof.Name,
+            Callback = function()
+                playMusic(sof)
+            end
+        })
+    elseif sof:IsA("Folder") and sof.Name ~= "Intermission" then
+        local nm = sof:FindFirstChild("Name")
+        local n = sof.MainSong
+        local c = sof.EscapeSong
+
+        musicTab:CreateSection(nm.Value)
+        musicTab:CreateButton({
+            Name = "Play Normal",
+            Callback = function()
+                playMusic(n)
+            end
+        })
+        musicTab:CreateButton({
+            Name = "Play Collapse",
+            Callback = function()
+                playMusic(c)
+            end
+        })
+    end
+end
 
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-- debug
 debugTab:CreateButton({
@@ -2730,6 +2871,13 @@ local pca = pads.ChildAdded:Connect(function(child)
     end
 end)
 table.insert(connections, pca)
+local cmp = music.Changed:Connect(function()
+    if customPlaying and currentCustom and music.Value ~= currentCustom then
+        music.Value:Stop()
+        music.Value = currentCustom
+    end
+end)
+table.insert(connections, cmp)
 
 ----loops!
 local loopClosest
@@ -3224,6 +3372,11 @@ function destroyGui()
 
     tweening = false
     print("stopped tweening")
+    
+    if customPlaying then
+        stopCurrentMusic()
+        print("stopped custom music")
+    end
 
     print("destroying rayfield...")
     task.wait(.2)
