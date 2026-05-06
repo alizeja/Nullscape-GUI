@@ -16,6 +16,9 @@ function toClipboard(txt)
 		notif("Your exploit doesn't have the ability to use the clipboard", "Clipboard")
 	end
 end
+
+
+
 --------------------------------------------------------
 
 local Players = game:GetService("Players")
@@ -28,6 +31,21 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local PlaceId, JobId = game.PlaceId, game.JobId
+
+------------------------------------------------
+local theparthatdestroystheguiifthepartisdestroyedexistsalready = ReplicatedStorage:FindFirstChild("DESTROYNULLGUI")
+
+if theparthatdestroystheguiifthepartisdestroyedexistsalready then
+    theparthatdestroystheguiifthepartisdestroyedexistsalready:Destroy()
+
+    StarterGui:SetCore("SendNotification", {
+        Title = "NULL GUI PRE-EXECUTE",
+        Text = "Null GUI already executed! Destroying old GUI...",
+        Duration = 3
+    })
+    task.wait(1.5)
+end
+------------------------------------------------
 
 local plr = Players.LocalPlayer
 
@@ -50,6 +68,7 @@ local pads = workspace.JumpPads
 local code = ReplicatedStorage.CodeVal
 local curses = ReplicatedStorage.CurseFolder.Curses
 local gcurses = ReplicatedStorage.GreaterCurseFolder.Curses
+local enemiesFolder = ReplicatedStorage.EnemyFolder
 local upgrades = ReplicatedStorage.UpgradeFolder.Upgrades
 local beacons = workspace.Beacons
 local destroyFolder = workspace.DestroyFolder
@@ -121,6 +140,7 @@ local clientenemies = {
 local tracers = {}
 local availableNormalGifts = {}
 local availableGoldenGifts = {}
+local newInstances = {}
 local cgb
 local mb
 
@@ -572,32 +592,56 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
     if willBreakAI == nil then
         willBreakAI = false
     end
-    
+
     local function loopEnemies(name, remove, list)
         list = list or enemies
         remove = remove or "TouchInterest"
-        local n = 0
 
+        local n = 0
+        local total = 0
         local enemiesFound = {}
 
         for _, sameenemy in list:GetChildren() do
-            if sameenemy.Name ~= name then continue end
+            if sameenemy.Name ~= name then
+                continue
+            end
 
-            for _, part in sameenemy:GetChildren() do
+            local loaded = sameenemy:FindFirstChild(remove, true) or sameenemy:FindFirstChild(name.."_ClientAI", true) or sameenemy:GetAttribute("Disabled") == true
+            
+            if not loaded then
+                continue
+            end
+
+            total += 1
+            table.insert(enemiesFound, sameenemy)
+
+            if sameenemy:GetAttribute("Disabled") == true then
+                n += 1
+                continue
+            end
+
+            local disabledThisEnemy = false
+
+            for _, part in sameenemy:GetDescendants() do
                 if part.Name == remove then
                     part:Destroy()
-                    n += 1
+                    disabledThisEnemy = true
                 end
             end
-            table.insert(enemiesFound, sameenemy)
+
+            if disabledThisEnemy then
+                sameenemy:SetAttribute("Disabled", true)
+                n += 1
+            end
         end
 
-        return n, enemiesFound
+        return n, total, enemiesFound
     end
+
     local function destroyEnemy(name, list)
         list = list or enemies
 
-        for _,sameenemy in list:GetChildren() do
+        for _, sameenemy in list:GetChildren() do
             if sameenemy.Name == name then
                 sameenemy:Destroy()
             end
@@ -606,26 +650,29 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
         if notifOn then
             notif(name.." disabled. (destroyed)", "Enemy")
         end
+
         return true
     end
 
     local disableFunction = {
         Basic = function(name, willDestroy, willBreakAI)
-            if not name then return end --how the fuck is there no names
+            if not name then return end
+
             if willDestroy then
                 return destroyEnemy(name)
             end
-            local n, enemiesFound = loopEnemies(name)
 
-            if n > 0 then
+            local n, total, enemiesFound = loopEnemies(name)
+
+            if total > 0 and n >= total then
                 if notifOn then
                     notif(tostring(n).." "..name.."(s) disabled.", "Enemy")
                 end
 
                 if willBreakAI then
-                        for _, e in pairs(enemiesFound) do
+                    for _, e in pairs(enemiesFound) do
                         local clientScript = e:FindFirstChild(name.."_ClientAI")
-                    
+
                         if clientScript then
                             clientScript.Enabled = false
                         end
@@ -635,104 +682,110 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 return true
             else
                 if failNotif == true and notifOn then
-                    print(failNotif)
-                    notif(name.." cannot be disabled, or already disabled.", "Enemy")
+                    notif(name.." cannot be fully disabled yet.", "Enemy")
                 end
+
                 return false
             end
         end,
-        Bell = function(name, willDestroy, willBreakAI)
-            if willDestroy then
-                return destroyEnemy(name)
-            end
-            local n, enemiesFound = loopEnemies(name)
 
-            if n > 0 then
-                if notifOn then
-                    notif(tostring(n).." Bell(s) disabled.", "Enemy")
-                end
-
-                if willBreakAI then
-                        for _, b in pairs(enemiesFound) do
-                        local clientScript = b:FindFirstChild(name.."_ClientAI")
-                    
-                        if clientScript then
-                            clientScript.Enabled = false
-                        end
-                    end
-                end
-
-                return true
-            else
-                if failNotif == true and notifOn then
-                    notif("Bell cannot be disabled, or already disabled.", "Enemy")
-                end
-                return false
-            end
-
-        end,
         Skinwalker = function(name, willDestroy, willBreakAI)
             local skinwalkers = workspace.Skinwalkers
+
             if #skinwalkers:GetChildren() == 0 then
                 if failNotif == true and notifOn then
                     notif("Husk isn't following you yet.", "Enemy")
                 end
                 return false
             end
+
             if willDestroy then
                 return destroyEnemy(name, skinwalkers)
             end
 
-            local n = loopEnemies("Skinwalker", "TouchInterest", skinwalkers)
-            n += loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers)
-            n += loopEnemies("Skinwalker1", "TouchInterest", skinwalkers)
+            local n = 0
+            local total = 0
 
-            if n > 0 then
+            local a,b = loopEnemies("Skinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("TallSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker1", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker2", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker3", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("Skinwalker4", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("CrayonSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+            a,b = loopEnemies("TallCrayonSkinwalker", "TouchInterest", skinwalkers); n += a total += b
+
+            if total > 0 and n >= total then
                 if notifOn then
                     notif(tostring(n).." Husk(s) disabled.", "Enemy")
                 end
                 return true
-            else
-                if failNotif == true and notifOn then
-                    notif("Husks are already disabled.", "Enemy")
-                end
-                return true
             end
+
+            return false
         end,
+
         Springer = function(name, willDestroy, willBreakAI)
             if not willDestroy then
                 loopEnemies(name, "SpringerShockwave")
-                local n, enemiesFound = loopEnemies(name, "DemonShockwave")
+                loopEnemies(name, "DemonShockwave")
+                local n, total, enemiesFound = loopEnemies(name, "Kill")
 
-                if n > 0 then
+                if total > 0 and n >= total then
                     if notifOn then
                         notif(tostring(n).." Springer(s) disabled.", "Enemy")
                     end
 
                     if willBreakAI then
-                            for _, s in pairs(enemiesFound) do
+                        for _, s in pairs(enemiesFound) do
                             local clientScript = s:FindFirstChild("Springer_ClientAI")
 
                             if clientScript then
+                                if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
+                                        local c
+                                        c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                        if not clientScript.Parent or not s.Parent then
+                                            c:Disconnect()
+                                            return
+                                        end
+
+                                        if clientScript.Enabled == true then
+                                            task.defer(function()
+                                                if clientScript.Parent and s.Parent then
+                                                    clientScript.Enabled = false
+                                                end
+                                            end)
+
+                                            c:Disconnect()
+                                        end
+                                    end)
+                                end
+                                
                                 clientScript.Enabled = false
+                                s:SetAttribute("Disabled", true)
+                                n += 1
                             end
                         end
                     end
 
                     return true
-                else
-                    if failNotif == true and notifOn then
-                        notif("No Springers left to disable.", "Enemy")
-                    end
-                    return true
                 end
+
+                return false
             else
                 return destroyEnemy(name)
             end
         end,
+
         ICBM = function(name, willDestroy, willBreakAI)
             if not willDestroy then
-                local _, enemiesFound = loopEnemies(name)
+                local enemiesFound = {}
+
+                for _, e in enemies:GetChildren() do
+                    if e.Name == name or e.Name == "ICBM" then
+                        table.insert(enemiesFound, e)
+                    end
+                end
 
                 if #enemiesFound > 0 then
                     local n = 0
@@ -740,36 +793,49 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                     for _, s in pairs(enemiesFound) do
                         local clientScript = s:FindFirstChild("ICBM_ClientAI")
 
-                        if clientScript and clientScript.Enabled == true then
+                        if clientScript then
+                            if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
+                                    local c
+                                    c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                    if not clientScript.Parent or not s.Parent then
+                                        c:Disconnect()
+                                        return
+                                    end
+
+                                    if clientScript.Enabled == true then
+                                        task.defer(function()
+                                            if clientScript.Parent and s.Parent then
+                                                clientScript.Enabled = false
+                                            end
+                                        end)
+
+                                        c:Disconnect()
+                                    end
+                                end)
+                            end
+
                             clientScript.Enabled = false
+                            s:SetAttribute("Disabled", true)
                             n += 1
                         end
                     end
 
-                    if n > 0 and notifOn then
-                        notif(tostring(n).." ICBM(s) disabled.", "Enemy")
-                    elseif failNotif == true and notifOn then
-                        notif("No ICBMs left to disable.", "Enemy")
-                    end
-                    return true
+                    return n >= #enemiesFound
                 end
+
+                return false
             else
                 return destroyEnemy(name)
             end
         end,
-        Kolona = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Operator = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Voidbreaker = function(name, willDestroy, willBreakAI)
-           return destroyEnemy(name)
-        end,
-        Scrapmaw = function(name, willDestroy, willBreakAI)
-            return destroyEnemy(name)
-        end
+
+        Kolona = function(name) return destroyEnemy(name) end,
+        Operator = function(name) return destroyEnemy(name) end,
+        Voidbreaker = function(name) return destroyEnemy(name) end,
+        Scrapmaw = function(name) return destroyEnemy(name) end
     }
+
+    print("disabling:", enemyName, "(NULL GUI)")
 
     if disableFunction[enemyName] then
         return disableFunction[enemyName](enemyName, willDestroy, willBreakAI)
@@ -794,9 +860,9 @@ local function GetClosestPad()
     local dist = 100
 
     for _, part in pads:GetChildren() do
-        if part.Color == badColor then print("bad color") continue end
+        if part.Color == badColor then print("bad color (NULL GUI)") continue end
         local mag = (root.Position - part.Position).Magnitude
-        if mag > dist then print(mag, ">", dist, "part too far") continue end
+        if mag > dist then print(mag, ">", dist, "part too far (NULL GUI)") continue end
 
         local origin = root.Position
         local direction = part.Position - origin
@@ -967,7 +1033,7 @@ mainTab:CreateButton({
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
 local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: boolean)
-    local allenemies = updateEnemySelection()
+    local allenemies = enemies:GetChildren()
     if not allenemies or #allenemies == 0 then
         if notifOn then
             notif("No enemies available.", "Not found")
@@ -1022,8 +1088,172 @@ enemyTab:CreateButton({
     end
 })
 
-enemyTab:CreateDivider()
+enemyTab:CreateSection("WHY")
 
+local function addKolonaToRound(int)
+    local k = enemiesFolder.Enemies.Kolona:Clone()
+    k.Parent = enemies
+    k.Kolona_AI.Enabled = true
+    newInstances["kolona"] = k
+
+    connections["kolona"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["kolona"] = nil
+        k:Destroy()
+        connections["kolona"] = nil
+
+        newInstances["kolonaVal"] = nil
+        int:Destroy()
+    end)
+end
+local function addOperatorToRound(int)
+    local o = enemiesFolder.Enemies.Operator:Clone()
+    o.Parent = enemies
+    o.Operator_AI.Enabled = true
+    newInstances["operator"] = o
+
+    connections["operator"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["operator"] = nil
+        o:Destroy()
+        connections["operator"] = nil
+
+        newInstances["operatorVal"] = nil
+        int:Destroy()
+    end)
+end
+local function addVoidbreakerToRound(int)
+    local v = enemiesFolder.Enemies.Voidbreaker:Clone()
+    v.Parent = enemies
+    v.Voidbreaker_AI.Enabled = true
+    newInstances["voidbreaker"] = v
+
+    connections["voidbreaker"] = ReplicatedStorage.InRound.Changed:Once(function(bool)
+        newInstances["voidbreaker"] = nil
+        v:Destroy()
+        connections["voidbreaker"] = nil
+
+        newInstances["voidbreakerVal"] = nil
+        int:Destroy()
+    end)
+end
+
+
+enemyTab:CreateButton({
+    Name = "Add One Husk",
+    Callback = function()
+        if not ReplicatedStorage.InRound.Value then
+            notif("YOU'RE NOT EVEN IN A ROUND, WHY", "bro.")
+        end
+
+        local s = enemiesFolder.Enemies.Skinwalker:Clone()
+        s.Parent = enemies
+
+        local sco
+        sco = ReplicatedStorage.InRound.Changed:Once(function()
+            s:Destroy()
+            local c = table.find(connections, sco)
+            if connections[c] ~= nil then
+                connections[c] = nil
+            end
+        end)
+        table.insert(connections, sco)
+
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Kolona This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Kolona") then
+            local int = Instance.new("IntValue")
+            int.Name = "Kolona"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["kolonaVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addKolonaToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Kolona has been <font color=\"#ff0000\">added</font>."))
+            else
+                local o = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addKolonaToRound(int)
+                end)
+                connections["kolona"] = o
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Kolona has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Kolona is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Operator This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Operator") then
+            local int = Instance.new("IntValue")
+            int.Name = "Operator"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["operatorVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addOperatorToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Operator has been <font color=\"#ff0000\">added</font>."))
+            else
+                local o = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addOperatorToRound(int)
+                end)
+                connections["operator"] = o
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Operator has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Operator is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+enemyTab:CreateButton({
+    Name = "Add Voidbreaker This Round or Next Round",
+    Callback = function()
+        if not enemiesFolder.ActiveEnemies:FindFirstChild("Voidbreaker") then
+            local int = Instance.new("IntValue")
+            int.Name = "Voidbreaker"
+            int.Value = 1
+            int.Parent = enemiesFolder.ActiveEnemies
+            newInstances["voidbreakerVal"] = int
+
+            if ReplicatedStorage.InRound.Value then
+                addVoidbreakerToRound(int)
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Voidbreaker has been <font color=\"#ff0000\">added</font>."))
+            else
+                local v = ReplicatedStorage.InRound.Changed:Once(function(bool)
+                    task.wait(.1)
+
+                    addVoidbreakerToRound(int)
+                end)
+                connections["voidbreaker"] = v
+
+                events.NotifyBindable:Fire("<font color=\"#ff0000\">WHY</font>", string.format("Voidbreaker has been <font color=\"#ff0000\">added next round</font>."))
+            end
+        else
+            if notifOn then
+                notif("Voidbreaker is already here or destroyed.", "erm.")
+            end
+        end
+    end
+})
+
+enemyTab:CreateDivider()
 
 local auto_disable = {}
 auto_disable.Bell = false
@@ -1033,6 +1263,7 @@ auto_disable.Springer = false
 auto_disable.Baby = false
 auto_disable.Flesh = false
 auto_disable.nilEnemy = false
+auto_disable.nilMirage = false
 auto_disable.Telefragger = false
 auto_disable.ShadowBaby = false
 
@@ -1045,9 +1276,11 @@ auto_break.ICBM = false
 auto_break.Baby = false
 auto_break.Flesh = false
 auto_break.nilEnemy = false
+auto_break.nilMirage = false
 auto_break.Telefragger = false
 auto_break.ShadowBaby = false
 auto_break.RealityBreak = false
+auto_break.Celestial = false
 
 local auto_destroy = {}
 auto_destroy.Bell = false
@@ -1060,30 +1293,31 @@ auto_destroy.Flesh = false
 auto_destroy.Operator = false
 auto_destroy.Kolona = false
 auto_destroy.nilEnemy = false
+auto_destroy.nilMirage = false
 auto_destroy.Telefragger = false
 auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
 auto_destroy.Scrapmaw = false
 auto_destroy.RealityBreak = false
+auto_destroy.Celestial = false
 
 local function handleEnemy(enemy)
     local name = enemy.Name
-    local waitingTime = 15
+    local waitingTime = 25
 
     if name == "ICBM" or name == "Telefragger" or name:find("Baby") then
-        waitingTime = 120 --wait two DAMN minutes
+        waitingTime = 75 --lowered to 75
     end
 
     if auto_destroy[name] then
         local start = tick()
-        local didDestroy = disableEnemy(name, true, false, false)
+        local didDestroy
 
         repeat
             if tick() - start >= waitingTime then break end
             didDestroy = disableEnemy(name, true, false, false)
-            disableEnemy(enemyName, willDestroy, willBreakAi, failNotif)
-            task.wait(1)
+            task.wait(.2)
         until didDestroy == true
     elseif auto_break[name] then
         if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
@@ -1091,12 +1325,12 @@ local function handleEnemy(enemy)
         end
 
         local start = tick()
-        local didBreak = disableEnemy(name, false, true, false)
+        local didBreak
 
         repeat
             if tick() - start >= waitingTime then break end
             didBreak = disableEnemy(name, false, true, false)
-            task.wait(1)
+            task.wait(.2)
         until didBreak == true
     elseif auto_disable[name] then
         if name == "Mart" and curses:FindFirstChild("MartSlide") and notifOn then
@@ -1104,12 +1338,12 @@ local function handleEnemy(enemy)
         end
 
         local start = tick()
-        local didDisable = disableEnemy(name, false, false, false)
+        local didDisable
 
         repeat
             if tick() - start >= waitingTime then break end
             didDisable = disableEnemy(name, false, false, false)
-            task.wait(1)
+            task.wait(.2)
         until didDisable == true
     end
 
@@ -1419,6 +1653,41 @@ enemyTab:CreateToggle({
         end
     end
 })
+enemyTab:CreateSection("Nil Mirage (Fake NILs)")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.nilMirage,
+    Callback = function(v)
+        auto_disable.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Break AI",
+    CurrentValue = auto_break.nilMirage,
+    Callback = function(v)
+        auto_break.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.nilMirage,
+    Callback = function(v)
+        auto_destroy.nilMirage = v
+        local nilMirage = enemies:FindFirstChild("nilMirage") 
+        if nilMirage then
+            handleEnemy(nilMirage)
+        end
+    end
+})
+
 
 enemyTab:CreateSection("Telefragger")
 enemyTab:CreateToggle({
@@ -1580,19 +1849,17 @@ enemyTab:CreateToggle({
 })
 
 enemyTab:CreateToggle({
-    Name = "Disable Celestial (NOT ADDED)",
-    CurrentValue = false,
-    Callback = function()
-        notif("Bloom.", "Celestial")
-        warn("Doom.")
+    Name = "Break Celestial AI",
+    CurrentValue = auto_break.Celestial,
+    Callback = function(v)
+        auto_break.Celestial = v
     end
 })
 enemyTab:CreateToggle({
-    Name = "Destroy Celestial (NOT ADDED)",
-    CurrentValue = false,
-    Callback = function()
-        notif("Doom.", "Celestial")
-        warn("Bloom.")
+    Name = "Destroy Celestial",
+    CurrentValue = auto_destroy.Celestial,
+    Callback = function(v)
+        auto_destroy.Celestial = v
     end
 })
 
@@ -1750,7 +2017,7 @@ mapTab:CreateButton({
 
 mapTab:CreateSection("Hazards")
 local tpt = mapTab:CreateToggle({
-    Name = "Tripmine Protection",
+    Name = "Tripmine Protection (LAGGY ON VERY HIGH LEVELS)",
     CurrentValue = pt,
     Callback = function(Value)
         pt = Value
@@ -1761,7 +2028,7 @@ local tpt = mapTab:CreateToggle({
 })
 local dfca
 local nvi = mapTab:CreateToggle({
-    Name = "Disable Void Implosions (LAGGY)",
+    Name = "Disable Void Implosions",
     CurrentValue = dvi,
     Callback = function(Value)
         dvi = Value
@@ -2187,6 +2454,48 @@ keyTab:CreateKeybind({
         disableAll(false, true)
     end
 })
+keyTab:CreateKeybind({
+    Name = "Reset Double Jumps/Ability",
+    CurrentKeybind = "T",
+    Callback = function(key)
+        local char = getChar(plr)
+        local humanoid = char and getHuman(char)
+
+        if char and humanoid and not isDead(plr) then
+            humanoid:ChangeState(Enum.HumanoidStateType.Landed) --im so dumb this worked the whole time
+        end
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Bring Jump Pad (ALSO DEACTIVATE RAZORBLOOM)",
+    CurrentKeybind = "Y",
+    Callback = function(key)
+        local pad = pads:FindFirstChild("JumpPad") or pads:FindFirstChild("GrapplePoint")
+        local root = getRoot(getChar(plr))
+
+        if pad and root and not isDead(plr) then
+            local pos = pad.Position
+            pad.Position = root.Position
+            task.wait(.01)
+            pad.Position = pos
+        end
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Bring Tria Orb",
+    CurrentKeybind = "Two",
+    Callback = function(key)
+        local pad = pads:FindFirstChild("TriaOrb")
+        local root = getRoot(getChar(plr))
+
+        if pad and root and not isDead(plr) then
+            local pos = pad.Position
+            pad.Position = root.Position
+            task.wait(.01)
+            pad.Position = pos
+        end
+    end
+})
 local canPress = true
 keyTab:CreateKeybind({
     Name = "Instantly Grapple to Nearest Jump Pad (Grappler Class Needed)",
@@ -2350,6 +2659,12 @@ local er = debugTab:CreateToggle({
         StarterGui:SetCore("ResetButtonCallback", Value)
     end
 })
+debugTab:CreateButton({
+    Name = "Kill Character (Respawns in Intermission)",
+    Callback = function()
+        events.Died:FireServer("Void", shared.LeftGroundWithinBellMethod, game.ReplicatedStorage.Level.Value)
+    end
+})
 local er = debugTab:CreateToggle({
     Name = "Enable All Notifications",
     CurrentValue = notifOn,
@@ -2384,7 +2699,6 @@ for _, enemy in ipairs(enemies:GetChildren()) do
 end
 local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
     enemy.Name = "Skinwalker"
-
     handleEnemy(enemy)
 end)
 table.insert(connections, skwca)
@@ -2393,7 +2707,9 @@ local eca = enemies.ChildAdded:Connect(function(enemy)
         enemy:Destroy()
     end
 
-    handleEnemy(enemy)
+    task.spawn(function()
+        handleEnemy(enemy)
+    end)
 end)
 table.insert(connections, eca)
 local pca = pads.ChildAdded:Connect(function(child)
@@ -2869,6 +3185,12 @@ function destroyGui()
     end
     partsConnected = nil
 
+    print("destroying "..#newInstances.." new instances")
+    for _, i in newInstances do
+        i:Destroy()
+    end
+    newInstances = nil
+
     vh:Set(false)
     print("visible hitbox off")
 
@@ -2909,5 +3231,11 @@ function destroyGui()
 end
 
 refreshGifts(true)
+
+local thepartthatdestroystheguiifthepartisdestroyed = Instance.new("Part")
+thepartthatdestroystheguiifthepartisdestroyed.Name = "DESTROYNULLGUI"
+thepartthatdestroystheguiifthepartisdestroyed.Parent = ReplicatedStorage
+
+thepartthatdestroystheguiifthepartisdestroyed.Destroying:Connect(destroyGui)
 
 notif("Null GUI Executed", "Null GUI")
