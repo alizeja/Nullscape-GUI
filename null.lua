@@ -836,6 +836,38 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             end
         end,
 
+        Sigil = function(name, willDestroy, willBreakAI)
+            if willDestroy then
+                return destroyEnemy(name)
+            end
+            
+            local n, total, enemiesFound = loopEnemies(name, "Beam")
+
+            if #enemiesFound > 0 then
+                if notifOn then
+                    notif("Disabled "..n.." Sigil(s)")
+                end
+
+                if willBreakAI then
+                    for _, e in pairs(enemiesFound) do
+                        local clientScript = e:FindFirstChild(name.."_ClientAI")
+
+                        if clientScript then
+                            clientScript.Enabled = false
+                        end
+                    end
+                end
+
+                return true
+            else
+                if notifOn and failNotif == true then
+                    notif("Sigil cannot be fully disabled yet.", "Enemy")
+                end
+
+                return false
+            end
+        end,
+
         Kolona = function(name) return destroyEnemy(name) end,
         Operator = function(name) return destroyEnemy(name) end,
         Voidbreaker = function(name) return destroyEnemy(name) end,
@@ -1322,6 +1354,7 @@ auto_disable.Flesh = false
 auto_disable.nilEnemy = false
 auto_disable.nilMirage = false
 auto_disable.Telefragger = false
+auto_disable.Sigil = false
 auto_disable.ShadowBaby = false
 
 local auto_break = {}
@@ -1335,6 +1368,7 @@ auto_break.Flesh = false
 auto_break.nilEnemy = false
 auto_break.nilMirage = false
 auto_break.Telefragger = false
+auto_break.Sigil = false
 auto_break.ShadowBaby = false
 auto_break.RealityBreak = false
 auto_break.Celestial = false
@@ -1352,6 +1386,7 @@ auto_destroy.Kolona = false
 auto_destroy.nilEnemy = false
 auto_destroy.nilMirage = false
 auto_destroy.Telefragger = false
+auto_destroy.Sigil = false
 auto_destroy.ShadowBaby = false
 auto_destroy.Voidbreaker = false
 auto_destroy.Cadence = false
@@ -1777,6 +1812,41 @@ enemyTab:CreateToggle({
         local Telefragger = enemies:FindFirstChild("Telefragger") 
         if Telefragger then
             handleEnemy(Telefragger)
+        end
+    end
+})
+
+enemyTab:CreateSection("Sigil")
+enemyTab:CreateToggle({
+    Name = "Auto Disable",
+    CurrentValue = auto_disable.Sigil,
+    Callback = function(v)
+        auto_disable.Sigil = v
+        local Sigil = enemies:FindFirstChild("Sigil") 
+        if Sigil then
+            handleEnemy(Sigil)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Break AI",
+    CurrentValue = auto_break.Sigil,
+    Callback = function(v)
+        auto_break.Sigil = v
+        local Sigil = enemies:FindFirstChild("Sigil") 
+        if Sigil then
+            handleEnemy(Sigil)
+        end
+    end
+})
+enemyTab:CreateToggle({
+    Name = "Auto Destroy",
+    CurrentValue = auto_destroy.Sigil,
+    Callback = function(v)
+        auto_destroy.Sigil = v
+        local Sigil = enemies:FindFirstChild("Sigil") 
+        if Sigil then
+            handleEnemy(Sigil)
         end
     end
 })
