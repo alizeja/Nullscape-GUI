@@ -354,7 +354,7 @@ local function refreshGifts(skip, golden)
             return
         end
 
-        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             local dist = (rootPos - gift.Position).Magnitude
 
             if dist <= 500 then
@@ -372,7 +372,7 @@ local function refreshGifts(skip, golden)
             return
         end
 
-        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect") then
+        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             local dist = (rootPos - gift.Position).Magnitude
 
             if dist <= 500 then
@@ -459,7 +459,7 @@ local function getClosestGift(giftList)
     local closest, shortest = nil, math.huge
 
     for _, gift in ipairs(giftList) do
-        if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect") then 
+        if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect", true) then 
             local diff = gift.Position - rootPos
             local dist = diff.Magnitude
 
@@ -549,9 +549,8 @@ local function goTo(part, activeTripmines, activeEnemies)
     root.CFrame = CFrame.new(root.Position, root.Position + direction) * CFrame.Angles(0, math.rad(90), 0)
 
     local blocked = pathBlocked(pos, activeTripmines, activeEnemies)
-    if blocked and (part.Name == "Gift" or part.Name == "GoldGift") then
+    if blocked and (part.Name == "Gift" or part.Name == "GoldenGift") then
         root.Position = pos
-        hitbox.Position = pos
         task.wait(.3)
         return
     end
@@ -1040,7 +1039,11 @@ mainTab:CreateButton({
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
-local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: boolean)
+local function disableAll(willDestroy: boolean, client: boolean, willBreakAI: boolean)
+    willDestroy = if willDestroy == nil then false else willDestroy
+    client = if client == nil then false else client
+    willBreakAI = if willBreakAI == nil then false else willBreakAI
+
     local allenemies = enemies:GetChildren()
     if not allenemies or #allenemies == 0 then
         if notifOn then
@@ -1052,14 +1055,14 @@ local function disableAll(willDestroy: boolean, client: boolean, willBreakAi: bo
     if client then
         for _, enemy in clientenemies do
             if not enemies:FindFirstChild(enemy) then continue end
-            disableEnemy(enemy, willDestroy, willBreakAi)
+            disableEnemy(enemy, willDestroy, willBreakAI)
         end
 
         return
     end
 
     for _, enemy in allenemies do
-        disableEnemy(enemy, willDestroy, willBreakAi)
+        disableEnemy(enemy, willDestroy, willBreakAI)
     end
 end
 
