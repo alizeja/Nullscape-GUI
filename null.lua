@@ -54,10 +54,10 @@ local events = ReplicatedStorage.Events
 local Camera = workspace.CurrentCamera
 local spawnPart = workspace.Spawn
 local items = workspace.Item_Pools
-local gifts = items.NormalGifts
-local goldengifts = items.GoldenGifts
-local tripmines = items.Tripmines
-local goldentripmines = items.GoldTripmines
+local gifts = items.Gift
+local goldengifts = items.GoldenGift
+local tripmines = items.Tripmine
+local goldentripmines = items:FindFirstChild("GoldTripmines")
 local enemies = workspace.Enemies
 local giftEsp = workspace.Showlocation
 local tripEsp = workspace.TripmineShowlocation
@@ -391,9 +391,11 @@ local function getActiveTripmines()
             table.insert(active, mine)
         end
     end
-    for _, mine in goldentripmines:GetChildren() do
-        if mine.Transparency ~= 1 then
-            table.insert(active, mine)
+    if goldentripmines then
+        for _, mine in goldentripmines:GetChildren() do
+            if mine.Transparency ~= 1 then
+                table.insert(active, mine)
+            end
         end
     end
     return active
@@ -1671,8 +1673,8 @@ enemyTab:CreateToggle({
     end
 })
 
-enemyTab:CreateSection("Nil")
-enemyTab:CreateToggle({
+enemyTab:CreateSection("Nil (CURRENTLY REMOVED)")
+--[[enemyTab:CreateToggle({
     Name = "Auto Disable",
     CurrentValue = auto_disable.nilEnemy,
     Callback = function(v)
@@ -1704,9 +1706,9 @@ enemyTab:CreateToggle({
             handleEnemy(nilEnemy)
         end
     end
-})
-enemyTab:CreateSection("Nil Mirage (Fake NILs)")
-enemyTab:CreateToggle({
+})]]
+enemyTab:CreateSection("Nil Mirage (Fake NILs) (CURRENTLY REMOVED)")
+--[[enemyTab:CreateToggle({
     Name = "Auto Disable",
     CurrentValue = auto_disable.nilMirage,
     Callback = function(v)
@@ -1738,7 +1740,7 @@ enemyTab:CreateToggle({
             handleEnemy(nilMirage)
         end
     end
-})
+})]]
 
 
 enemyTab:CreateSection("Telefragger")
