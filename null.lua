@@ -2457,7 +2457,7 @@ local drb = plrTab:CreateToggle({
 
 ---------------visual
 
-visualTab:CreateSection("Better ESP Upgrades")
+--[[visualTab:CreateSection("Better ESP Upgrades")
 visualTab:CreateButton({
     Name = "Enable Better Gift ESP",
     Callback = function()
@@ -2472,7 +2472,7 @@ visualTab:CreateButton({
         tripEsp.FillTransparency = 0.75
         tripEsp.OutlineTransparency = 0
     end
-})
+})]]
 
 visualTab:CreateSection("ESP")
 local cge = visualTab:CreateToggle({
