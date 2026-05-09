@@ -100,6 +100,7 @@ vpBox.Adornee = velocityPart
 vpBox.Parent = velocityPart
 
 local notifOn = true
+local destroying = false
 
 local tweening = false
 local currentTween:tween = nil
@@ -119,6 +120,7 @@ local canEzCollectMedal = true
 local canFullReset = true
 local canBringPad = true
 local canBringTria = true
+local canGliderBoost = false
 local av = false
 local noice = false
 local noflesh = false
@@ -131,6 +133,7 @@ local dso = false
 local velov = false
 local nrb = false
 local nfb = false
+local gliderBoost = false
 local connections = {}
 
 local clientenemies = {
@@ -2664,6 +2667,21 @@ keyTab:CreateKeybind({
     end
 })
 keyTab:CreateKeybind({
+    Name = "Fly / Glider Boost (HOLD)",
+    CurrentKeybind = "Q",
+    HoldToInteract = true,
+    Callback = function(holding)
+        if not holding then
+            gliderBoost = false
+            return
+        end
+
+        if not canGliderBoost then return end
+
+        gliderBoost = holding
+    end
+})
+keyTab:CreateKeybind({
     Name = "Teleport to Spawn",
     CurrentKeybind = "Home",
     HoldToInteract = false,
@@ -2741,21 +2759,21 @@ keyTab:CreateToggle({
     end
 })
 keyTab:CreateToggle({
-    Name = "Disable Reset Double Jumps/Ability Keybind",
+    Name = "Reset Double Jumps/Ability Keybind",
     CurrentValue = canFullReset,
     Callback = function(Value)
         canFullReset = Value
     end
 })
 keyTab:CreateToggle({
-    Name = "Disable Bring Jump Pad Keybind",
+    Name = "Bring Jump Pad Keybind",
     CurrentValue = canBringPad,
     Callback = function(Value)
         canBringPad = Value
     end
 })
 keyTab:CreateToggle({
-    Name = "Disable Bring Tria Orb Keybind",
+    Name = "Bring Tria Orb Keybind",
     CurrentValue = canBringTria,
     Callback = function(Value)
         canBringTria = Value
@@ -2766,6 +2784,13 @@ keyTab:CreateToggle({
     CurrentValue = canInstaGrapple,
     Callback = function(Value)
         canInstaGrapple = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Fly / Glider Boost Keybind",
+    CurrentValue = canGliderBoost,
+    Callback = function(Value)
+        canGliderBoost = Value
     end
 })
 keyTab:CreateToggle({
@@ -3106,6 +3131,60 @@ end)
 local lastUpdate = 0
 local RATE = 1/30
 
+local LV
+task.spawn(function()
+    local root = getRoot(getChar(plr))
+    LV = root:FindFirstChild("LV_NULLGUI")
+            if not LV then
+                LV = Instance.new("LinearVelocity")
+                LV.Name = "LV_NULLGUI"
+                LV.Attachment0 = root.RootAttachment
+                LV.RelativeTo = Enum.ActuatorRelativeTo.World
+                LV.MaxForce = math.huge
+                LV.VectorVelocity = Vector3.zero
+                LV.Enabled = false
+                LV.Parent = root
+            end
+
+    while task.wait() do
+        if gliderBoost then
+            root = getRoot(getChar(plr))
+            LV = root:FindFirstChild("LV_NULLGUI")
+
+            if not LV then
+                LV = Instance.new("LinearVelocity")
+                LV.Name = "LV_NULLGUI"
+                LV.Attachment0 = root.RootAttachment
+                LV.RelativeTo = Enum.ActuatorRelativeTo.World
+                LV.MaxForce = math.huge
+                LV.VectorVelocity = Vector3.zero
+                LV.Enabled = false
+                LV.Parent = root
+            end
+
+            Camera = workspace.CurrentCamera
+            local lookVector = Camera.CFrame.LookVector
+
+            if not isDead(plr) then
+                LV.Enabled = true
+                LV.VectorVelocity = lookVector * 100
+                local targetCF = CFrame.lookAt(
+			        root.Position,
+			        root.Position + lookVector
+		        )
+		        root.CFrame = root.CFrame:Lerp(targetCF, 0.15)
+            end
+        else
+            LV.Enabled = false
+            LV.VectorVelocity = Vector3.zero
+        end
+        
+        if destroying then
+            break
+        end
+    end
+end)
+
 RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, function()
     local plrdead = isDead(plr)
 
@@ -3366,6 +3445,7 @@ end)
 
 ---- destroy
 function destroyGui()
+    destroying = true
     notif("Destroying...", "Nullscape GUI:")
 
     runLoop:Disconnect()
@@ -3454,8 +3534,17 @@ function destroyGui()
         print("stopped custom music")
     end
 
+    gliderBoost = false
+    print("stopped glider boosting")
+
+    if LV then
+        LV:Destroy()
+        print("fly LV destroyed")
+    end
+
     print("destroying rayfield...")
     task.wait(.2)
+    gliderBoost = false
     Rayfield:Destroy()
 end
 
