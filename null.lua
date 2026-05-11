@@ -323,14 +323,10 @@ local function updateGiftLists()
     goldenList = goldengifts:GetChildren()
 end
 
-local gca = gifts.ChildAdded:Connect(updateGiftLists)
-local gcr = gifts.ChildRemoved:Connect(updateGiftLists)
-local ggca = goldengifts.ChildAdded:Connect(updateGiftLists)
-local ggcr = goldengifts.ChildRemoved:Connect(updateGiftLists)
-table.insert(connections, gca)
-table.insert(connections, gcr)
-table.insert(connections, ggca)
-table.insert(connections, ggcr)
+table.insert(connections, gifts.ChildAdded:Connect(updateGiftLists))
+table.insert(connections, gifts.ChildRemoved:Connect(updateGiftLists))
+table.insert(connections, goldengifts.ChildAdded:Connect(updateGiftLists))
+table.insert(connections, goldengifts.ChildRemoved:Connect(updateGiftLists))
 
 updateGiftLists()
 
@@ -755,8 +751,8 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
                             if clientScript then
                                 if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
-                                        local c
-                                        c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                    local c
+                                    c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
                                         if not clientScript.Parent or not s.Parent then
                                             c:Disconnect()
                                             return
@@ -1108,42 +1104,37 @@ mainTab:CreateButton({
 -- })
 
 mainTab:CreateDivider()
-local giftCountLabel = mainTab:CreateLabel("Gifts: 0/0 | Needed: 0")
-local goldgiftCountLabel = mainTab:CreateLabel("Golden Gifts: 0/0 | Needed: 0")
---local goldTripmineCountLabel = mainTab:CreateLabel("Golden Tripmines Activated: 0/0 | Remaining: 0")
-local passageCountLabel = mainTab:CreateLabel("Passage Golden Gifts: 0/0 | Needed: 0")
-local tripmineCountLabel = mainTab:CreateLabel("Tripmines Activated: 0/0 | Remaining: 0")
-
 local giftCounter = counters.Gift
 local goldgiftCounter = counters.GoldenGift
 local goldTripmineCounter = counters.GoldenTripmine
 local passageCounter = counters.PassageGift
 local tripmineCounter = counters.Tripmine
 
-local countgc = giftCounter.Changed:Connect(function()
+local giftCountLabel = mainTab:CreateLabel("Gifts: "..tostring(giftCounter:GetAttribute("Collected")).."/"..tostring(giftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(giftCounter.Value))
+local goldgiftCountLabel = mainTab:CreateLabel("Golden Gifts: "..tostring(goldgiftCounter:GetAttribute("Collected")).."/"..tostring(goldgiftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(goldgiftCounter.Value))
+--local goldTripmineCountLabel = mainTab:CreateLabel("Golden Tripmines Activated: "..tostring(goldTripmineCounter:GetAttribute("Collected")).."/"..tostring(goldTripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(goldTripmineCounter.Value))
+local passageCountLabel = mainTab:CreateLabel("Passage Golden Gifts: "..tostring(passageCounter:GetAttribute("Collected")).."/"..tostring(passageCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(passageCounter.Value))
+local tripmineCountLabel = mainTab:CreateLabel("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
+
+table.insert(connections, giftCounter.Changed:Connect(function()
     giftCountLabel:Set("Gifts: "..tostring(giftCounter:GetAttribute("Collected")).."/"..tostring(giftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(giftCounter.Value))
-end)
-table.insert(connections, countgc)
+end))
 
-local countggc = goldgiftCounter.Changed:Connect(function()
+table.insert(connections, goldgiftCounter.Changed:Connect(function()
     goldgiftCountLabel:Set("Golden Gifts: "..tostring(goldgiftCounter:GetAttribute("Collected")).."/"..tostring(goldgiftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(goldgiftCounter.Value))
-end)
-table.insert(connections, countggc)
+end))
 
--- local countgtc = goldTripmineCounter.Changed:Connect(function()
+-- table.insert(connections, goldTripmineCounter.Changed:Connect(function()
 --     goldTripmineCountLabel:Set("Golden Tripmines Activated: "..tostring(goldTripmineCounter:GetAttribute("Collected")).."/"..tostring(goldTripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(goldTripmineCounter.Value))
--- end)
--- table.insert(connections, countgtc)
+-- end))
 
-local countpgc = passageCounter.Changed:Connect(function()
+table.insert(connections, passageCounter.Changed:Connect(function()
     passageCountLabel:Set("Passage Golden Gifts: "..tostring(passageCounter:GetAttribute("Collected")).."/"..tostring(passageCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(passageCounter.Value))
-end)
-table.insert(connections, countpgc)
+end))
 
-local counttc = tripmineCounter.Changed:Connect(function()
+table.insert(connections, tripmineCounter.Changed:Connect(function()
     tripmineCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
-end)
-table.insert(connections, counttc)
+end))
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
@@ -2193,7 +2184,6 @@ local tpt = mapTab:CreateToggle({
         end
     end
 })
-local dfca
 local nvi = mapTab:CreateToggle({
     Name = "Disable Void Implosions",
     CurrentValue = dvi,
@@ -2202,19 +2192,18 @@ local nvi = mapTab:CreateToggle({
 
         local vic = gcurses:FindFirstChild("VoidImplosions")
 
-        if dfca then
-            dfca:Disconnect()
+        if connections["dfca"] then
+            connections["dfca"]:Disconnect()
             connections["dfca"] = nil
-            dfca = nil
         end
 
         if dvi and vic then
-            dfca = destroyFolder.ChildAdded:Connect(function(child)
+            connections["dfca"] = destroyFolder.ChildAdded:Connect(function(child)
                 if child.Name == "VoidExplosion" then
                     child:Destroy()
                 end
             end)
-            connections["dfca"] = dfca
+             
         end
     end
 })
@@ -2302,17 +2291,15 @@ mapTab:CreateButton({
 
         for _, p in ipairs(currentRooms:GetDescendants()) do
             if p:IsA("BasePart") and partsConnected[p] == nil then
-                local pmc = p:GetPropertyChangedSignal("Material"):Connect(function()
+                partsConnected[p] = p:GetPropertyChangedSignal("Material"):Connect(function()
                     if (p.Material == Enum.Material.Ice and noice)
                     or(p.Material == Enum.Material.CorrodedMetal and noflesh) then
                         p.Material = Enum.Material.Air
                     end
                 end)
 
-                partsConnected[p] = pmc
-
                 p.Destroying:Once(function()
-                    pmc:Disconnect()
+                    partsConnected[p]:Disconnect()
                     partsConnected[p] = nil
                 end)
 
@@ -2990,12 +2977,11 @@ debugTab:CreateButton({
 for _, enemy in ipairs(enemies:GetChildren()) do
     task.spawn(handleEnemy, enemy, 5)
 end
-local skwca = workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
+table.insert(connections, workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
     enemy.Name = "Skinwalker"
     handleEnemy(enemy)
-end)
-table.insert(connections, skwca)
-local eca = enemies.ChildAdded:Connect(function(enemy)
+end))
+table.insert(connections, enemies.ChildAdded:Connect(function(enemy)
     if enemy.Name == "Oblivion" and dso then
         enemy:Destroy()
     end
@@ -3006,9 +2992,8 @@ local eca = enemies.ChildAdded:Connect(function(enemy)
     task.spawn(function()
         handleEnemy(enemy)
     end)
-end)
-table.insert(connections, eca)
-local pca = pads.ChildAdded:Connect(function(child)
+end))
+table.insert(connections, pads.ChildAdded:Connect(function(child)
     if dsm then
         if child.Name == "Seamine" then
             task.wait(3)
@@ -3024,15 +3009,13 @@ local pca = pads.ChildAdded:Connect(function(child)
             end
         end
     end
-end)
-table.insert(connections, pca)
-local cmp = music.Changed:Connect(function()
+end))
+table.insert(connections, music.Changed:Connect(function()
     if customPlaying and currentCustom and music.Value ~= currentCustom then
         music.Value:Stop()
         music.Value = currentCustom
     end
-end)
-table.insert(connections, cmp)
+end))
 
 ----loops!
 local loopClosest
@@ -3146,20 +3129,20 @@ local runLoop = RunService.Heartbeat:Connect(function()
     if h then
         if not h:HasTag("loop") then
             h:AddTag("loop")
-            local wsc = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            connections["walkloop"] = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
                 local cs = h.WalkSpeed
                 if cs == ws or not ew then return end
 
                 h.WalkSpeed = ws
             end)
-            connections["walkloop"] = wsc
-            local jpc = h:GetPropertyChangedSignal("JumpPower"):Connect(function()
+            
+            connections["jumploop"] = h:GetPropertyChangedSignal("JumpPower"):Connect(function()
                 local cp = h.JumpPower
                 if cp == jp or not ej then return end
 
                 h.JumpPower = jp
             end)
-            connections["jumploop"] = jpc
+            
         end
     end
 
@@ -3499,6 +3482,8 @@ end)
 
 ---- destroy
 function destroyGui()
+    if destroying then return end
+
     destroying = true
     notif("Destroying...", "Nullscape GUI:")
 
@@ -3574,9 +3559,6 @@ function destroyGui()
     nf:Set(false)
     print("no flesh off")
 
-    nvi:Set(false)
-    print("void implosions back")
-
     nsm:Set(false)
     print("seamines back")
 
@@ -3596,9 +3578,15 @@ function destroyGui()
         print("fly LV destroyed")
     end
 
-    print("destroying rayfield...")
+    local thepartblahblahblah = ReplicatedStorage:FindFirstChild("DESTROYNULLGUI")
+    if thepartblahblahblah ~= nil then
+        thepartblahblahblah:Destroy()
+    end
+    
+    print("fully destroyed null gui stuff")
+    print("now destroying rayfield...")
     task.wait(.2)
-    gliderBoost = false
+    gliderBoost = false --just in case
     Rayfield:Destroy()
 end
 
@@ -3608,6 +3596,6 @@ local thepartthatdestroystheguiifthepartisdestroyed = Instance.new("Part")
 thepartthatdestroystheguiifthepartisdestroyed.Name = "DESTROYNULLGUI"
 thepartthatdestroystheguiifthepartisdestroyed.Parent = ReplicatedStorage
 
-thepartthatdestroystheguiifthepartisdestroyed.Destroying:Connect(destroyGui)
+thepartthatdestroystheguiifthepartisdestroyed.Destroying:Once(destroyGui)
 
 notif("Null GUI Executed", "Null GUI")
