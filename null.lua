@@ -1109,22 +1109,22 @@ end)
 table.insert(connections, countgc)
 
 local countggc = goldgiftCounter.Changed:Connect(function()
-    giftCountLabel:Set("Golden Gifts: "..tostring(goldgiftCounter:GetAttribute("Collected")).."/"..tostring(goldgiftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(goldgiftCounter.Value))
+    goldgiftCountLabel:Set("Golden Gifts: "..tostring(goldgiftCounter:GetAttribute("Collected")).."/"..tostring(goldgiftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(goldgiftCounter.Value))
 end)
 table.insert(connections, countggc)
 
 -- local countgtc = goldTripmineCounter.Changed:Connect(function()
---     giftCountLabel:Set("Golden Tripmines Activated: "..tostring(goldTripmineCounter:GetAttribute("Collected")).."/"..tostring(goldTripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(goldTripmineCounter.Value))
+--     goldTripmineCountLabel:Set("Golden Tripmines Activated: "..tostring(goldTripmineCounter:GetAttribute("Collected")).."/"..tostring(goldTripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(goldTripmineCounter.Value))
 -- end)
 -- table.insert(connections, countgtc)
 
 local countpgc = passageCounter.Changed:Connect(function()
-    giftCountLabel:Set("Passage Golden Gifts: "..tostring(passageCounter:GetAttribute("Collected")).."/"..tostring(passageCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(passageCounter.Value))
+    passageCountLabel:Set("Passage Golden Gifts: "..tostring(passageCounter:GetAttribute("Collected")).."/"..tostring(passageCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(passageCounter.Value))
 end)
 table.insert(connections, countpgc)
 
 local counttc = tripmineCounter.Changed:Connect(function()
-    giftCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
+    tripmineCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
 end)
 table.insert(connections, counttc)
 
