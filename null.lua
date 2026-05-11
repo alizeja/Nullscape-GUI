@@ -808,8 +808,8 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
 
                         if clientScript then
                             if clientScript.Enabled == false and not s:GetAttribute("Disabled") then
-                                    local c
-                                    c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                local c
+                                c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
                                     if not clientScript.Parent or not s.Parent then
                                         c:Disconnect()
                                         return
@@ -839,6 +839,54 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
                 return false
             else
                 return destroyEnemy(name)
+            end
+        end,
+
+        Celestial = function(name, willDestroy, willBreakAI)
+            if willDestroy then
+                return destroyEnemy(name)
+            end
+            local n, total, enemiesFound = loopEnemies(name)
+
+            if n > 0 then
+                if notifOn then
+                    notif("Celestial disabled. Go Collect.")
+                end
+
+                if #enemiesFound > 0 then
+                    for _, s in pairs(enemiesFound) do
+                        local clientScript = s:FindFirstChild("Celestial_ClientAI")
+
+                        if clientScript then
+                            if clientScript.Enabled == false then
+                                local c
+                                c = clientScript:GetPropertyChangedSignal("Enabled"):Connect(function()
+                                    if not clientScript.Parent or not s.Parent then
+                                        c:Disconnect()
+                                        return
+                                    end
+
+                                    if clientScript.Enabled == true then
+                                        task.defer(function()
+                                            if clientScript.Parent and s.Parent then
+                                                clientScript.Enabled = false
+                                            end
+                                        end)
+
+                                        c:Disconnect()
+                                    end
+                                end)
+                            end
+
+                            clientScript.Enabled = false
+                            s:SetAttribute("Disabled", true)
+                            n += 1
+                        end
+                    end
+                end
+                return true
+            else
+                return false
             end
         end,
 
