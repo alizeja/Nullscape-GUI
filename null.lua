@@ -74,6 +74,7 @@ local upgrades = ReplicatedStorage.UpgradeFolder.Upgrades
 local beacons = workspace.Beacons
 local destroyFolder = workspace.DestroyFolder
 local bullets = items.Bullet
+local counters = ReplicatedStorage.GiftCounters
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -1089,6 +1090,43 @@ mainTab:CreateButton({
 --     end
 -- })
 
+mainTab:CreateDivider()
+local giftCountLabel = mainTab:CreateLabel("Gifts: 0/0 | Needed: 0")
+local goldgiftCountLabel = mainTab:CreateLabel("Golden Gifts: 0/0 | Needed: 0")
+--local goldTripmineCountLabel = mainTab:CreateLabel("Golden Tripmines Activated: 0/0 | Remaining: 0")
+local passageCountLabel = mainTab:CreateLabel("Passage Golden Gifts: 0/0 | Needed: 0")
+local tripmineCountLabel = mainTab:CreateLabel("Tripmines Activated: 0/0 | Remaining: 0")
+
+local giftCounter = counters.Gift
+local goldgiftCounter = counters.GoldenGift
+local goldTripmineCounter = counters.GoldenTripmine
+local passageCounter = counters.PassageGift
+local tripmineCounter = counters.Tripmine
+
+local countgc = giftCounter.Changed:Connect(function()
+    giftCountLabel:Set("Gifts: "..tostring(giftCounter:GetAttribute("Collected")).."/"..tostring(giftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(giftCounter.Value))
+end)
+table.insert(connections, countgc)
+
+local countggc = goldgiftCounter.Changed:Connect(function()
+    giftCountLabel:Set("Golden Gifts: "..tostring(goldgiftCounter:GetAttribute("Collected")).."/"..tostring(goldgiftCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(goldgiftCounter.Value))
+end)
+table.insert(connections, countggc)
+
+-- local countgtc = goldTripmineCounter.Changed:Connect(function()
+--     giftCountLabel:Set("Golden Tripmines Activated: "..tostring(goldTripmineCounter:GetAttribute("Collected")).."/"..tostring(goldTripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(goldTripmineCounter.Value))
+-- end)
+-- table.insert(connections, countgtc)
+
+local countpgc = passageCounter.Changed:Connect(function()
+    giftCountLabel:Set("Passage Golden Gifts: "..tostring(passageCounter:GetAttribute("Collected")).."/"..tostring(passageCounter:GetAttribute("MaxGifts")).." | Needed: "..tostring(passageCounter.Value))
+end)
+table.insert(connections, countpgc)
+
+local counttc = tripmineCounter.Changed:Connect(function()
+    giftCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
+end)
+table.insert(connections, counttc)
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
