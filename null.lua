@@ -1429,7 +1429,6 @@ auto_break.nilMirage = false
 auto_break.Telefragger = false
 auto_break.Sigil = false
 auto_break.ShadowBaby = false
-auto_break.RealityBreak = false
 auto_break.Celestial = false
 
 local auto_destroy = {}
@@ -2011,17 +2010,6 @@ enemyTab:CreateToggle({
 
 enemyTab:CreateSection("Blossom")
 enemyTab:CreateSection("Reality Break")
-enemyTab:CreateToggle({
-    Name = "Auto Break AI",
-    CurrentValue = auto_break.RealityBreak,
-    Callback = function(v)
-        auto_break.RealityBreak = v
-        local RealityBreak = enemies:FindFirstChild("RealityBreak") 
-        if RealityBreak then
-            handleEnemy(RealityBreak)
-        end
-    end
-})
 enemyTab:CreateToggle({
     Name = "Auto Destroy",
     CurrentValue = auto_destroy.RealityBreak,
@@ -3017,6 +3005,9 @@ table.insert(connections, skwca)
 local eca = enemies.ChildAdded:Connect(function(enemy)
     if enemy.Name == "Oblivion" and dso then
         enemy:Destroy()
+    end
+    if enemy.Name == "RealityBreak2" then
+        enemy.Name = "RealityBreak"
     end
 
     task.spawn(function()
