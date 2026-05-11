@@ -711,6 +711,7 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             end
 
             if willDestroy then
+				destroyEnemy(name)
                 return destroyEnemy(name, skinwalkers)
             end
 
