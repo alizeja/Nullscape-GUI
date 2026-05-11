@@ -121,6 +121,7 @@ local canFullReset = true
 local canBringPad = true
 local canBringTria = true
 local canGliderBoost = false
+local canCancelTween = false
 local av = false
 local noice = false
 local noflesh = false
@@ -964,6 +965,7 @@ local function collect(which)
         end
         tweening = true
         local startRefreshing
+        local tween:Tween
 
         while tweening do
             local char = getChar(plr)
@@ -988,10 +990,13 @@ local function collect(which)
                 startRefreshing = tick()
             end
 
-            local tween = goTo(gift, activeTripmines, enemies:GetChildren())
+            tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
+        end
+        if tween then
+            tween:Cancel()
         end
         tweening = false
     end
@@ -1005,6 +1010,7 @@ local function collect(which)
         end
         tweening = true
         local startRefreshing
+        local tween:Tween
 
         while tweening do
             local char = getChar(plr)
@@ -1029,10 +1035,13 @@ local function collect(which)
                 startRefreshing = tick()
             end
 
-            local tween = goTo(gift, activeTripmines, enemies:GetChildren())
+            tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
 
             task.wait(.02)
+        end
+        if tween then
+            tween:Cancel()
         end
         tweening = false
         if getGoldenAfter then task.wait(3) collectGolden() end
@@ -1061,6 +1070,14 @@ mainTab:CreateButton({
     Name = "Collect Golden Gifts",
     Callback = function()
         collect("golden")
+    end
+})
+mainTab:CreateButton({
+    Name = "Cancel Collecting",
+    Callback = function()
+        if tweening then
+            tweening = false
+        end
     end
 })
 -- local ga = mainTab:CreateToggle({
@@ -2691,7 +2708,6 @@ keyTab:CreateKeybind({
         hitbox.Position = pos
     end
 })
-
 keyTab:CreateKeybind({
     Name = "Teleport to Beacon",
     CurrentKeybind = "Insert",
@@ -2702,6 +2718,16 @@ keyTab:CreateKeybind({
         local pos = workspace.Beacon.Position + Vector3.new(0,4,0)
         root.Position = pos
         hitbox.Position = pos
+    end
+})
+keyTab:CreateKeybind({
+    Name = "Cancel Collecting",
+    CurrentKeybind = "End",
+    HoldToInteract = false,
+    Callback = function()
+        if not canCancelTween or not tweening then return end
+        
+        tweening = false
     end
 })
 -- keyTab:CreateKeybind({
@@ -2803,6 +2829,13 @@ keyTab:CreateToggle({
     CurrentValue = canGoBeacon,
     Callback = function(Value)
         canGoBeacon = Value
+    end
+})
+keyTab:CreateToggle({
+    Name = "Cancel Collecting Keybind",
+    CurrentValue = canCancelTween,
+    Callback = function(Value)
+        canCancelTween = Value
     end
 })
 -- keyTab:CreateToggle({
