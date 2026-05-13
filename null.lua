@@ -542,7 +542,7 @@ local function goTo(part, activeTripmines, activeEnemies)
     if part.Name == "Spawn" then pos += Vector3.new(0,4,0) end
     local diff = pos - rootPos
     local dist = diff.Magnitude
-    if dist == 0 then return end
+    if dist == 0 or dist >= 10000 then return end
 
     local direction = diff.Unit
     root.CFrame = CFrame.new(root.Position, root.Position + direction) * CFrame.Angles(0, math.rad(90), 0)
@@ -969,7 +969,7 @@ end
 local function collect(which)
     local activeTripmines = getActiveTripmines()
     if magSlider then
-        magSlider:Set(10)
+        magSlider:Set(5)
     end
 
     local function collectGolden()
