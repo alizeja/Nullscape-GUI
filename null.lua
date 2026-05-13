@@ -968,6 +968,9 @@ end
 ---------------------collection
 local function collect(which)
     local activeTripmines = getActiveTripmines()
+    if magSlider then
+        magSlider:Set(10)
+    end
 
     local function collectGolden()
         if tweening then
@@ -1095,7 +1098,7 @@ mainTab:CreateButton({
 })
 
 mainTab:CreateDivider()
-local magSlider = mainTab:CreateSlider({
+magSlider = mainTab:CreateSlider({
     Name = "Gift Collection Range",
     Range = {1, 30},
     Increment = 1,
@@ -3597,6 +3600,10 @@ function destroyGui()
     if thepartblahblahblah ~= nil then
         thepartblahblahblah:Destroy()
     end
+
+    magSlider:Set(1)
+    magnet:Fire({Reset = math.huge})
+    print("reset collection range")
     
     print("fully destroyed null gui stuff")
     print("now destroying rayfield...")
