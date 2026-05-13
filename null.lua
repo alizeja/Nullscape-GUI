@@ -75,6 +75,7 @@ local beacons = workspace.Beacons
 local destroyFolder = workspace.DestroyFolder
 local bullets = items.Bullet
 local counters = ReplicatedStorage.GiftCounters
+local magnet = events.MovementGiftMagnet
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -1095,6 +1096,25 @@ mainTab:CreateButton({
         end
     end
 })
+
+mainTab:CreateDivider()
+local magSlider = mainTab:CreateSlider({
+    Name = "Gift Collection Range",
+    Range = {1, 30},
+    Increment = 1,
+    CurrentValue = 1,
+    Callback = function(v)
+        magnet:Fire({Add = v})
+    end
+})
+mainTab:CreateButton({
+    Name = "Reset Range",
+    Callback = function()
+        magSlider:Set(1)
+        magnet:Fire({Reset = 1})
+    end
+})
+
 -- local ga = mainTab:CreateToggle({
 --     Name = "Collect Aura (LAGGY ON HIGHER LEVELS)",
 --     CurrentValue = aura,
