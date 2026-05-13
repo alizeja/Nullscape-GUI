@@ -2624,7 +2624,7 @@ keyTab:CreateKeybind({
     CurrentKeybind = "Y",
     Callback = function(key)
         if not canBringPad then return end
-        local pad = pads:FindFirstChild("GrapplePoint") or pads:FindFirstChild("JumpPad")
+        local pad = pads:FindFirstChild("JumpPad")
         local root = getRoot(getChar(plr))
 
         if pad and root and not isDead(plr) then
