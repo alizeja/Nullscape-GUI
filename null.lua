@@ -33,10 +33,8 @@ local TeleportService = game:GetService("TeleportService")
 local PlaceId, JobId = game.PlaceId, game.JobId
 
 ------------------------------------------------
-local theparthatdestroystheguiifthepartisdestroyedexistsalready = ReplicatedStorage:FindFirstChild("DESTROYNULLGUI")
-
-if theparthatdestroystheguiifthepartisdestroyedexistsalready then
-    theparthatdestroystheguiifthepartisdestroyedexistsalready:Destroy()
+if ReplicatedStorage:FindFirstChild("DESTROYNULLGUI") then
+    ReplicatedStorage:FindFirstChild("DESTROYNULLGUI"):Destroy()
 
     StarterGui:SetCore("SendNotification", {
         Title = "NULL GUI PRE-EXECUTE",
@@ -59,8 +57,8 @@ local goldengifts = items.GoldenGift
 local tripmines = items.Tripmine
 local goldentripmines = items:FindFirstChild("GoldTripmines")
 local enemies = workspace.Enemies
-local giftEsp = workspace.Showlocation
-local tripEsp = workspace.TripmineShowlocation
+--local giftEsp = workspace.Showlocation
+--local tripEsp = workspace.TripmineShowlocation
 local selection = workspace:FindFirstChild("Select")
 local collectGift: RemoteEvent = events.GiftCollected
 local currentRooms = workspace.CurrentRooms
@@ -104,7 +102,6 @@ local notifOn = true
 local destroying = false
 
 local tweening = false
-local currentTween:tween = nil
 local aura = false
 local cesp = false
 local mesp = false
@@ -3018,11 +3015,11 @@ table.insert(connections, music.Changed:Connect(function()
 end))
 
 ----loops!
-local loopClosest
-local giftSelection = {}
+--local loopClosest
+--local giftSelection = {}
 
-local lastAura = 0
-local auraRATE = 1/45
+--local lastAura = 0
+--local auraRATE = 1/45
 
 local runLoop = RunService.Heartbeat:Connect(function()
     if (aura or tweening or cesp) and not isDead(plr) then
@@ -3240,8 +3237,6 @@ RunService:BindToRenderStep("DRAWING", Enum.RenderPriority.Camera.Value + 1, fun
 
 
     if instrumentesp then
-        local camPos = Camera.ViewportSize
-
         if enemies:FindFirstChild("Cadence") then
             local cadence = enemies:FindFirstChild("Cadence")
 
