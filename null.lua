@@ -6,7 +6,7 @@ function missing(t, f, fallback)
 	return fallback
 end
 
-everyClipboard = missing("function", setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set))
+local everyClipboard = missing("function", setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set))
 
 function toClipboard(txt)
 	if everyClipboard then
@@ -17,7 +17,15 @@ function toClipboard(txt)
 	end
 end
 
+local fSignal = missing("function", firesignal)
 
+function fireSig(signal, args:table)
+    if fSignal then
+        fSignal(signal, args)
+    else
+        notif("Your exploit doesn't have the ability to use this function.", "firesignal")
+    end
+end
 
 --------------------------------------------------------
 
@@ -173,6 +181,7 @@ function notif(text: string, title: string, dur: number)
 end
 
 local mainTab = Window:CreateTab("Main")
+local upgradeTab = Window:CreateTab("Upgrades")
 local enemyTab = Window:CreateTab("Enemy")
 local mapTab = Window:CreateTab("Map")
 local plrTab = Window:CreateTab("Player")
@@ -1155,6 +1164,110 @@ end))
 table.insert(connections, tripmineCounter.Changed:Connect(function()
     tripmineCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
 end))
+
+---------------------------------------------------------------------------------------------------------------------------------
+
+if fSignal then
+    upgradeTab:CreateLabel("Your exploit can add upgrades.")
+else
+    upgradeTab:CreateLabel("Your exploit currently doesn't support adding upgrades.")
+end
+upgradeTab:CreateParagraph({
+    Title = "NOTE",
+    Content = "Upgrades added are temporary, but might permanently show on the menu\nYou can also remove upgrades bought\nSome upgrades don't have an effect past their limit\n'Why isn't this upgrade here?' That upgrade cannot be added."
+})
+upgradeTab:CreateDivider()
+local clientUpgrades = {
+    "MatrixTetrahedron",
+    "Adrenaline",
+    "HighlightGifts",
+    "AdvancedGravityCoil",
+    "SportShoes",
+    "TheOrb",
+    "RealWings",
+    "GraceWings",
+    "RadarPlayer",
+    "RadarInstruments",
+    "HighlightTripmines",
+    "IceSkates",
+    "SwiftnessRing",
+    "GiftMagnet",
+    "SharkTail",
+    "EnemyOnTop",
+    "PocketBell",
+    "NinjaBelt",
+    "Helmet",
+    "DoubleJump",
+    "RadarAltars"
+}
+
+local function addUpgrade(name, uLabel)
+    local intv:IntValue = upgrades:FindFirstChild(name)
+    if intv then
+        print("intv found")
+        intv.Value += 1
+        fireSig(events.UpgradesChanged.OnClientEvent, {
+            [name] = intv.Value
+        })
+    else
+        print("no intv")
+        fireSig(events.UpgradesChanged.OnClientEvent, {
+            [name] = 1
+        })
+
+        intv = Instance.new("IntValue")
+        intv.Value = 1
+        intv.Name = name
+        intv.Parent = upgrades
+
+        getHuman(getChar(plr)).RootPart.Destroying:Once(function()
+            print("destroyed", intv)
+            intv:Destroy()
+        end)
+    end
+
+    uLabel:Set("Current: "..tostring(intv.Value))
+end
+local function subUpgrade(name, uLabel)
+    local intv:IntValue = upgrades:FindFirstChild(name)
+    if intv and intv.Value > 1 then
+        print("intv found, more than 1")
+        intv.Value -= 1
+        fireSig(events.UpgradesChanged.OnClientEvent, {
+            [name] = intv.Value
+        })
+
+        uLabel:Set("Current: "..tostring(intv.Value))
+        return
+    elseif intv and intv.Value <= 1 then
+        print("intv found, 1, destroying...")
+        intv:Destroy()
+        return
+    end
+
+    fireSig(events.UpgradesChanged.OnClientEvent, {
+        [name] = 0
+    })
+    uLabel:Set("Current: 0")
+    print("no int found, resetting to 0")
+end
+
+for _, u in clientUpgrades do
+    upgradeTab:CreateSection(u)
+    local uLabel = upgradeTab:CreateLabel("Current: 0")
+    upgradeTab:CreateButton({
+        Name = "Add One",
+        Callback = function()
+            addUpgrade(u, uLabel)
+        end
+    })
+    upgradeTab:CreateButton({
+        Name = "Remove One",
+        Callback = function()
+            subUpgrade(u, uLabel)
+        end
+    })
+end
 
 enemyTab:CreateSection("All Enemies") ----------------------------------------------------------------------------------------------
 
