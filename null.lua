@@ -3226,10 +3226,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
 
     if root and hitbox then
-        hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt work
-        if h and root.Position.Y <= workspace.KillVoid.Position.Y and h.Health > 0 then
-            h:ChangeState(Enum.HumanoidStateType.Dead)
-        end
+        hitbox.Position = root.Position --teleporting hitbox and root together sometimes doesnt worK
 
         if velov then
             local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.5,1)
