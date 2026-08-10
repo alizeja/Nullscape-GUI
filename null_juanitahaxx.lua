@@ -163,7 +163,7 @@ local cgb, mb
 
 -- ── Load juanitahaxx Library ──────────────────────────────────────────────────
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sametexe001/juanitahaxx/refs/heads/main/Library.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/kee-67/juanitahaxx-modified/refs/heads/main/Library.lua"))()
 
 function notif(text, title, dur)
     if not notifOn then return end
@@ -243,7 +243,7 @@ medalTracer.Transparency = 1
 local lastRefresh  = 0
 local scanIndex    = 1
 local scanIndexTwo = 1
-local SCAN_SIZE    = 100
+local SCAN_SIZE    = 200
 local normalList   = {}
 local goldenList   = {}
 
@@ -259,6 +259,31 @@ table.insert(connections, goldengifts.ChildRemoved:Connect(updateGiftLists))
 updateGiftLists()
 
 local function refreshGifts(skip, golden)
+    local char = getChar(plr)
+    local root = getRoot(char)
+    if not root then return end
+    local rootPos = root.Position
+
+    if skip then
+        table.clear(availableNormalGifts)
+        table.clear(availableGoldenGifts)
+        for _, gift in ipairs(normalList) do
+            if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+                if (rootPos - gift.Position).Magnitude <= 500 then
+                    table.insert(availableNormalGifts, gift)
+                end
+            end
+        end
+        for _, gift in ipairs(goldenList) do
+            if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+                if (rootPos - gift.Position).Magnitude <= 500 then
+                    table.insert(availableGoldenGifts, gift)
+                end
+            end
+        end
+        return
+    end
+
     local currentAvailableGifts = #availableNormalGifts
     if #availableNormalGifts == 0 or golden then
         currentAvailableGifts = #availableGoldenGifts
@@ -267,22 +292,15 @@ local function refreshGifts(skip, golden)
                          (currentAvailableGifts > 1500 and 1/3)  or (currentAvailableGifts > 1000 and 1/5) or
                          (currentAvailableGifts > 500  and 1/12.5) or 1/25
 
-    if not skip then
-        if tick() - lastRefresh < REFRESH_RATE then return end
-        lastRefresh = tick()
-    end
-
-    local char = getChar(plr)
-    local root = getRoot(char)
-    if not root then return end
-    local rootPos = root.Position
+    if tick() - lastRefresh < REFRESH_RATE then return end
+    lastRefresh = tick()
 
     for i = 1, SCAN_SIZE do
         local gift = normalList[scanIndex]
-        if not gift then scanIndex = 1 return end
-        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+        if not gift then scanIndex = 1 break end
+        if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             if (rootPos - gift.Position).Magnitude <= 500 then
-                availableNormalGifts[#availableNormalGifts+1] = gift
+                table.insert(availableNormalGifts, gift)
             end
         end
         scanIndex += 1
@@ -290,10 +308,10 @@ local function refreshGifts(skip, golden)
 
     for i = 1, SCAN_SIZE do
         local gift = goldenList[scanIndexTwo]
-        if not gift then scanIndexTwo = 1 return end
-        if gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+        if not gift then scanIndexTwo = 1 break end
+        if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             if (rootPos - gift.Position).Magnitude <= 500 then
-                availableGoldenGifts[#availableGoldenGifts+1] = gift
+                table.insert(availableGoldenGifts, gift)
             end
         end
         scanIndexTwo += 1
@@ -343,13 +361,20 @@ end
 local function getClosestGift(giftList)
     local char = getChar(plr)
     local root = getRoot(char)
-    if not root then return end
+    if not root then return nil, math.huge end
     local rootPos = root.Position
     local closest, shortest = nil, math.huge
-    for _, gift in ipairs(giftList) do
-        if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect", true) then
+
+    for i = #giftList, 1, -1 do
+        local gift = giftList[i]
+        if not gift or not gift.Parent or gift.Transparency == 1 or not gift:FindFirstChild("Collect", true) then
+            table.remove(giftList, i)
+        else
             local dist = (gift.Position - rootPos).Magnitude
-            if dist < shortest then shortest = dist; closest = gift end
+            if dist < shortest then
+                shortest = dist
+                closest = gift
+            end
         end
     end
     return closest, shortest
@@ -362,12 +387,11 @@ local function getClosestAnyGift()
     local rootPos = root.Position
     local closest, shortest = nil, math.huge
     local function check(list)
-        for _, gift in ipairs(list) do
-            if gift and gift.Transparency == 0 and gift:FindFirstChild("Collect") ~= nil then
-                task.spawn(function()
-                    local dist = (gift.Position - rootPos).Magnitude
-                    if dist < shortest then shortest = dist; closest = gift end
-                end)
+        for i = #list, 1, -1 do
+            local gift = list[i]
+            if gift and gift.Parent and gift.Transparency == 0 and gift:FindFirstChild("Collect") ~= nil then
+                local dist = (gift.Position - rootPos).Magnitude
+                if dist < shortest then shortest = dist; closest = gift end
             end
         end
     end
@@ -505,41 +529,65 @@ local function collect(which)
     local function collectGolden()
         if tweening then notif("Already collecting.", "Collection System") return end
         tweening = true
-        local startRefreshing; local tween
+        refreshGifts(true, true)
+
+        local tween
+        local retryCount = 0
         while tweening do
             local char = getChar(plr); local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
-            if not startRefreshing then refreshGifts(true, true)
-            elseif tick() - startRefreshing >= 15 then startRefreshing = tick(); refreshGifts(true, true) end
+            refreshGifts(true, true)
             local gift = getClosestGift(availableGoldenGifts)
-            if not gift then notif("No golden gifts found.", "Gift Not Found") break end
-            if not startRefreshing then startRefreshing = tick() end
+            if not gift then
+                retryCount += 1
+                if retryCount > 3 then
+                    notif("No golden gifts found nearby.", "Gift Not Found")
+                    break
+                end
+                task.wait(0.4)
+                continue
+            end
+            retryCount = 0
             tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
             task.wait(.02)
         end
         if tween then tween:Cancel() end
         tweening = false
+        local humanoid = getHuman(getChar(plr))
+        if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Landed) end
     end
 
     local function collectNormal()
         if tweening then notif("Already collecting.", "Collection System") return end
         tweening = true
-        local startRefreshing; local tween
+        refreshGifts(true, false)
+
+        local tween
+        local retryCount = 0
         while tweening do
             local char = getChar(plr); local root = getRoot(char)
             if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
-            if not startRefreshing then refreshGifts(true, true)
-            elseif tick() - startRefreshing >= 15 then startRefreshing = tick(); refreshGifts(true, true) end
+            refreshGifts(true, false)
             local gift = getClosestGift(availableNormalGifts)
-            if not gift then notif("No gifts found.", "Gift Not Found") break end
-            if not startRefreshing then startRefreshing = tick() end
+            if not gift then
+                retryCount += 1
+                if retryCount > 3 then
+                    notif("No gifts found nearby.", "Gift Not Found")
+                    break
+                end
+                task.wait(0.4)
+                continue
+            end
+            retryCount = 0
             tween = goTo(gift, activeTripmines, enemies:GetChildren())
             if tween then tween.Completed:Wait() end
             task.wait(.02)
         end
         if tween then tween:Cancel() end
         tweening = false
+        local humanoid = getHuman(getChar(plr))
+        if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Landed) end
     end
 
     if which == "normal" then collectNormal()
@@ -756,14 +804,24 @@ do
     local mainLeftSec  = mainPage:Section({ Name = "Gift Collection", Side = 1 })
     local mainRightSec = mainPage:Section({ Name = "Gift Counters",   Side = 2 })
 
-    mainLeftSec:Button({ Name = "Collect Normal Gifts", Callback = function() collect("normal") end })
-    mainLeftSec:Button({ Name = "Collect Golden Gifts", Callback = function() collect("golden") end })
-    mainLeftSec:Button({ Name = "Cancel Collecting",    Callback = function() if tweening then tweening = false end end })
+    mainLeftSec:Button({
+        Name = "Collect Normal Gifts",
+        Callback = function()
+            task.spawn(function() collect("normal") end)
+        end
+    })
+    mainLeftSec:Button({
+        Name = "Collect Golden Gifts",
+        Callback = function()
+            task.spawn(function() collect("golden") end)
+        end
+    })
+    mainLeftSec:Button({ Name = "Cancel Collecting", Callback = function() if tweening then tweening = false end end })
 
     magSlider = mainLeftSec:Slider({
         Name     = "Gift Collection Range",
         Flag     = "GiftCollectionRange",
-        Min      = 1, Max = 30, Default = 1, Decimals = 0,
+        Min      = 1, Max = 30, Default = 1, Decimals = 1,
         Callback = function(v) magnet:Fire({ Add = v }) end
     })
     mainLeftSec:Button({
@@ -1005,7 +1063,7 @@ do
     })
     mapVoidSec:Slider({
         Name = "Launch Power", Flag = "AntiVoidLaunchPower",
-        Min = 10, Max = 1000, Default = 500, Decimals = 0,
+        Min = 10, Max = 1000, Default = 500, Decimals = 1,
         Callback = function(v) lp = v end
     })
     mapVoidSec:Toggle({
@@ -1239,7 +1297,7 @@ do
     })
     plrHumanSec:Slider({
         Name = "WalkSpeed", Flag = "WalkSpeedValue",
-        Min = 5, Max = 200, Default = 16, Decimals = 0,
+        Min = 5, Max = 200, Default = 16, Decimals = 1,
         Callback = function(v)
             ws = v
             local h = getHuman(getChar(plr))
@@ -1248,7 +1306,7 @@ do
     })
     plrHumanSec:Slider({
         Name = "JumpPower", Flag = "JumpPowerValue",
-        Min = 25, Max = 100, Default = 35, Decimals = 0,
+        Min = 25, Max = 100, Default = 35, Decimals = 1,
         Callback = function(v)
             jp = v
             local h = getHuman(getChar(plr))
@@ -1297,7 +1355,7 @@ do
     })
     visualCamSec:Slider({
         Name = "Field of View", Flag = "CameraFOV",
-        Min = 1, Max = 120, Default = math.floor(Camera.FieldOfView), Decimals = 0,
+        Min = 1, Max = 120, Default = math.floor(Camera.FieldOfView), Decimals = 1,
         Callback = function(v) workspace.CurrentCamera.FieldOfView = v end
     })
     visualVelSec:Toggle({
@@ -1317,11 +1375,11 @@ do
 
     keyActionSec:Label({ Name = "Collect Normal Gifts" }):Keybind({
         Flag = "KB_CollectNormal", Default = Enum.KeyCode.Nine, Mode = "Toggle",
-        Callback = function() if canEzCollectNormal then collect("normal") end end
+        Callback = function() if canEzCollectNormal then task.spawn(function() collect("normal") end) end end
     })
     keyActionSec:Label({ Name = "Collect Golden Gifts" }):Keybind({
         Flag = "KB_CollectGolden", Default = Enum.KeyCode.Zero, Mode = "Toggle",
-        Callback = function() if canEzCollectGolden then collect("golden") end end
+        Callback = function() if canEzCollectGolden then task.spawn(function() collect("golden") end) end end
     })
     keyActionSec:Label({ Name = "Get Medal" }):Keybind({
         Flag = "KB_GetMedal", Default = Enum.KeyCode.Eight, Mode = "Toggle",
@@ -1579,7 +1637,9 @@ local runLoop = RunService.Heartbeat:Connect(function()
     local h = getHuman(char)
     Camera = Camera or workspace.CurrentCamera
 
-    if visibleHitbox and root and hitbox then hitbox.Transparency = 0 end
+    if visibleHitbox and root and hitbox then
+        hitbox.Transparency = 0
+    end
 
     if av and root then
         local pos = spawnPart.Position + Vector3.new(0,4,0)
@@ -1600,8 +1660,6 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
 
     if root and hitbox then
-        hitbox.Position = root.Position
-
         if velov then
             local velocity = root.AssemblyLinearVelocity * Vector3.new(1,0.5,1)
             local speed    = velocity.Magnitude
@@ -1624,8 +1682,8 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
 
-    if h and not h:HasTag("loop") then
-        h:AddTag("loop")
+    if h and not h:GetAttribute("loop") then
+        h:SetAttribute("loop", true)
         connections["walkloop"] = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
             if h.WalkSpeed ~= ws and ew then h.WalkSpeed = ws end
         end)
