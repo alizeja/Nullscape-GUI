@@ -52,6 +52,20 @@ local TeleportService  = game:GetService("TeleportService")
 local SoundService     = game:GetService("SoundService")
 local PlaceId, JobId   = game.PlaceId, game.JobId
 
+-- ── Game Check ────────────────────────────────────────────────────────────────
+
+local EXPECTED_PLACE_ID = 100588763114828
+
+if PlaceId ~= EXPECTED_PLACE_ID then
+    StarterGui:SetCore("SendNotification", {
+        Title    = "NULLSCAPE GUI",
+        Text     = "Executed in the wrong place! (Expected place ID: " .. EXPECTED_PLACE_ID .. ")",
+        Duration = 10
+    })
+    warn("[NULL GUI] Wrong game! Expected place ID:", EXPECTED_PLACE_ID, "| got:", PlaceId)
+    return
+end
+
 -- ── Duplicate Execution Safeguard ─────────────────────────────────────────────
 
 if ReplicatedStorage:FindFirstChild("DESTROYNULLGUI") then
