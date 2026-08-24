@@ -168,6 +168,29 @@ local gliderBoost     = false
 local connections     = {}
 local stopCustomMusic -- assigned in the Music page section
 local restoreHumanoid -- assigned in the Player page section
+local uiReady         = false -- blocks remote fires while the UI applies saved config at load
+
+-- Shared state hoisted to file scope (page do-blocks previously shadowed
+-- these as locals, so code outside the blocks read nil globals instead).
+local ew, ej              = false, false
+local ws, jp              = 16, 35
+local antiVoidSelection   = 1
+local lp                  = 500
+local lastAvNoGift        = 0
+local partsConnected      = {}
+local customPlaying       = false
+local currentCustom
+local savedAutoload       = "" -- shared autoload.json captured during load; replayable via Debug page
+local autoFixCharge       = true -- enforce root.CanCollide / humanoid.AutoRotate (fixes charge noclip)
+local runLoop             -- heartbeat connection; assigned in the connections/loops stage
+
+-- Staged module loader: modules register via stage(); the runner at the
+-- bottom executes them one per frame after execution. Early stages
+-- (background listeners, loops) run before the UI pages do.
+local buildStages, earlyStages = {}, {}
+local function stage(fn, early)
+    table.insert(early and earlyStages or buildStages, fn)
+end
 
 local clientenemies = { "Kolona","Voidbreaker","Skinwalker","Operator","Scrapmaw" }
 
@@ -190,21 +213,11 @@ notif = function(text, title, dur)
     )
 end
 
--- ── Window & Pages ────────────────────────────────────────────────────────────
+-- ── Window & Pages (created lazily inside their build stages) ─────────────────
 
-local Window      = Library:Window({ Name = "Nullscape GUI" })
-local Watermark   = Window:Watermark({ Name = "Nullscape GUI" })
-local KeybindList = Window:KeybindList()
-
-local mainPage    = Window:Page({ Name = "Main" })
-local upgradePage = Window:Page({ Name = "Upgrades" })
-local enemyPage   = Window:Page({ Name = "Enemy" })
-local mapPage     = Window:Page({ Name = "Map" })
-local plrPage     = Window:Page({ Name = "Player" })
-local visualPage  = Window:Page({ Name = "Visual" })
-local keyPage     = Window:Page({ Name = "Keybinds" })
-local musicPage   = Window:Page({ Name = "Music" })
-local debugPage   = Window:Page({ Name = "Debug" })
+local Window, Watermark, KeybindList
+local mainPage, upgradePage, enemyPage, mapPage
+local plrPage, visualPage, keyPage, musicPage, debugPage
 
 -- ═══════════════════════════════════════════════════════════════════════
 --  HELPER FUNCTIONS
@@ -240,19 +253,130 @@ local function isDead(target)
     end
 end
 
--- ── Drawing Lines ─────────────────────────────────────────────────────────────
+-- Restores healthy movement state. The charge-noclip bug leaves the
+-- HumanoidRootPart with CanCollide=false and AutoRotate=false (confirmed
+-- via diagnostics); this re-asserts both and cleans up afterwards.
+local function repairMovement()
+    local char = getChar(plr)
+    if not char then return end
+    local humanoid = getHuman(char)
+    local root, hitbox = getRoot(char)
+    local wasBroken = false
 
-local closestGiftTracer = Drawing.new("Line")
-closestGiftTracer.Visible   = false
-closestGiftTracer.Thickness = 2
-closestGiftTracer.Color     = Color3.new(1, 1, 0)
-closestGiftTracer.Transparency = 1
+    if root and not root.CanCollide then root.CanCollide = true; wasBroken = true end
+    if humanoid and not humanoid.AutoRotate then humanoid.AutoRotate = true; wasBroken = true end
 
-local medalTracer = Drawing.new("Line")
-medalTracer.Visible     = false
-medalTracer.Thickness   = 2
-medalTracer.Color       = Color3.new(0.75, 0.75, 0.75)
-medalTracer.Transparency = 1
+    if wasBroken then
+        if root then root.AssemblyLinearVelocity = Vector3.zero end
+        if root and hitbox then hitbox.CFrame = root.CFrame end
+        if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Landed) end
+        print("[NULL GUI] movement restored (root.CanCollide / AutoRotate were disabled)")
+    end
+end
+
+-- Prints everything needed to diagnose the charge-noclip to the console (F9).
+local function dumpMovementDiagnostics()
+    local char = getChar(plr)
+    local humanoid = char and getHuman(char)
+    local root, hitbox = char and getRoot(char)
+    print("==== NULL GUI movement diagnostics ====")
+    print("character:", char and char.Name or "nil")
+    if humanoid then
+        print(("humanoid: hp=%s state=%s platformStand=%s walkspeed=%s autorotate=%s jumpPower=%s")
+            :format(tostring(humanoid.Health), tostring(humanoid:GetState()), tostring(humanoid.PlatformStand),
+                tostring(humanoid.WalkSpeed), tostring(humanoid.AutoRotate), tostring(humanoid.JumpPower)))
+    else
+        print("humanoid: nil")
+    end
+    if root then
+        local okOwner, owner = pcall(function() return root:GetNetworkOwner() end)
+        print(("root: pos=%s vel=%s anchored=%s canCollide=%s group=%s owner=%s")
+            :format(tostring(root.Position), tostring(root.AssemblyLinearVelocity), tostring(root.Anchored),
+                tostring(root.CanCollide), tostring(root.CollisionGroup), okOwner and tostring(owner) or "?"))
+    end
+    if root and hitbox then
+        print(("hitbox: posDelta=%.2f canCollide=%s group=%s")
+            :format((hitbox.Position - root.Position).Magnitude, tostring(hitbox.CanCollide), tostring(hitbox.CollisionGroup)))
+    end
+    if root then
+        local rp = RaycastParams.new()
+        rp.FilterType = Enum.RaycastFilterType.Exclude
+        rp.FilterDescendantsInstances = { plr.Character }
+        local r = workspace:Raycast(root.Position, Vector3.new(0, -6, 0), rp)
+        print("ground probe:", r and ("%s canCollide=%s group=%s"):format(r.Instance.Name, tostring(r.Instance.CanCollide), tostring(r.Instance.CollisionGroup)) or "none within 6 studs")
+    end
+    print("========================================")
+end
+
+-- Applies a saved config gradually (one flag per frame) instead of firing
+-- every element callback synchronously in a single burst.
+local function applyConfigStaged(configJson)
+    if not configJson or configJson == "" then return end
+    local ok, decoded = pcall(HttpService.JSONDecode, HttpService, configJson)
+    if not ok or type(decoded) ~= "table" then
+        warn("[NULL GUI] config decode failed:", decoded)
+        return
+    end
+    task.spawn(function()
+        local applied = 0
+        for flagName, value in pairs(decoded) do
+            if destroying then break end
+            local setter = Library and Library.SetFlags and Library.SetFlags[flagName]
+            if setter then
+                if type(value) == "table" and value.Key then
+                    pcall(setter, value)
+                elseif type(value) == "table" and value.Color then
+                    pcall(setter, value.Color, value.Alpha)
+                else
+                    pcall(setter, value)
+                end
+                applied += 1
+            end
+            task.wait()
+        end
+        notif(("Config loaded (%d settings)."):format(applied), "Config")
+    end)
+end
+
+-- Registers the WalkSpeed/JumpPower enforcers lazily (only once the user
+-- actually enables an override) instead of touching the humanoid at load.
+local function ensureMoveWatchers(h)
+    if not h or h:GetAttribute("loop") then return end
+    h:SetAttribute("loop", true)
+    connections["walkloop"] = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if h.WalkSpeed ~= ws and ew then h.WalkSpeed = ws end
+    end)
+    connections["jumploop"] = h:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        if h.JumpPower ~= jp and ej then h.JumpPower = jp end
+    end)
+end
+
+-- ── Drawing Lines (created lazily on first ESP toggle) ────────────────────────
+
+local closestGiftTracer, medalTracer
+
+local function ensureTracers()
+    if closestGiftTracer then return end
+    closestGiftTracer = Drawing.new("Line")
+    closestGiftTracer.Visible   = false
+    closestGiftTracer.Thickness = 2
+    closestGiftTracer.Color     = Color3.new(1, 1, 0)
+    closestGiftTracer.Transparency = 1
+
+    medalTracer = Drawing.new("Line")
+    medalTracer.Visible     = false
+    medalTracer.Thickness   = 2
+    medalTracer.Color       = Color3.new(0.75, 0.75, 0.75)
+    medalTracer.Transparency = 1
+end
+
+local function hideClosestTracer()
+    if closestGiftTracer then closestGiftTracer.Visible = false end
+end
+
+local function hideMedalTracer()
+    if medalTracer then medalTracer.Visible = false end
+end
 
 -- ── Gift Scanning System ──────────────────────────────────────────────────────
 
@@ -268,11 +392,13 @@ local function updateGiftLists()
     goldenList = goldengifts:GetChildren()
 end
 
+stage(function()
 table.insert(connections, gifts.ChildAdded:Connect(updateGiftLists))
 table.insert(connections, gifts.ChildRemoved:Connect(updateGiftLists))
 table.insert(connections, goldengifts.ChildAdded:Connect(updateGiftLists))
 table.insert(connections, goldengifts.ChildRemoved:Connect(updateGiftLists))
 updateGiftLists()
+end, true)
 
 local function refreshGifts(skip, golden)
     local char = getChar(plr)
@@ -842,9 +968,15 @@ local function handleEnemy(enemy)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════
---  MAIN PAGE (SCOPED IN DO...END BLOCK)
+--  MAIN PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    -- Window shell is created here so nothing UI-related exists at execution
+    Window      = Library:Window({ Name = "Nullscape GUI" })
+    Watermark   = Window:Watermark({ Name = "Nullscape GUI" })
+    KeybindList = Window:KeybindList()
+    mainPage    = Window:Page({ Name = "Main" })
+
     local mainLeftSec  = mainPage:Section({ Name = "Gift Collection", Side = 1 })
     local mainRightSec = mainPage:Section({ Name = "Gift Counters",   Side = 2 })
 
@@ -866,7 +998,7 @@ do
         Name     = "Gift Collection Range",
         Flag     = "GiftCollectionRange",
         Min      = 1, Max = 30, Default = 1, Decimals = 1,
-        Callback = function(v) magnet:Fire({ Add = v }) end
+        Callback = function(v) if uiReady then magnet:Fire({ Add = v }) end end
     })
     mainLeftSec:Button({
         Name = "Reset Collection Range",
@@ -900,12 +1032,14 @@ do
     bindCounter(goldgiftCounter, goldCountLabel,     function() return counterStr(goldgiftCounter, "Golden Gifts") end)
     bindCounter(passageCounter,  passageCountLabel,  function() return counterStr(passageCounter, "Passage Golden Gifts") end)
     bindCounter(tripmineCounter, tripmineCountLabel, function() return tripmineStr(tripmineCounter) end)
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  UPGRADES PAGE (SCOPED IN DO...END BLOCK)
+--  UPGRADES PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    upgradePage = Window:Page({ Name = "Upgrades" })
+
     local upgradeLeftSec  = upgradePage:Section({ Name = "Client Upgrades", Side = 1 })
     local upgradeRightSec = upgradePage:Section({ Name = "Info",            Side = 2 })
 
@@ -952,12 +1086,14 @@ do
         upgradeLeftSec:Button({ Name = "Add "..u,    Callback = function() addUpgrade(u) end })
         upgradeLeftSec:Button({ Name = "Remove "..u, Callback = function() subUpgrade(u) end })
     end
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  ENEMY PAGE (SCOPED IN DO...END BLOCK)
+--  ENEMY PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    enemyPage = Window:Page({ Name = "Enemy" })
+
     local enemyAllSec    = enemyPage:Section({ Name = "All Enemies",          Side = 1 })
     local enemyClientSec = enemyPage:Section({ Name = "Client-sided Enemies", Side = 2 })
     local enemyWhySec    = enemyPage:Section({ Name = "Add Enemies (WHY)",    Side = 2 })
@@ -1077,21 +1213,19 @@ do
             if not v then bulletprots:ClearAllChildren() end
         end
     })
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  MAP PAGE (SCOPED IN DO...END BLOCK)
+--  MAP PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    mapPage = Window:Page({ Name = "Map" })
+
     local mapVoidSec   = mapPage:Section({ Name = "Void",    Side = 1 })
     local mapAltarSec  = mapPage:Section({ Name = "Altars",  Side = 2 })
     local mapHazardSec = mapPage:Section({ Name = "Hazards", Side = 1 })
     local mapTileSec   = mapPage:Section({ Name = "Tiles",   Side = 2 })
     local mapBloomSec  = mapPage:Section({ Name = "Bloom (Pylons)", Side = 1 })
-
-    local antiVoidSelection = 1
-    local lp = 500
-    local lastAvNoGift = 0
 
     mapVoidSec:Toggle({
         Name = "Anti Void", Flag = "AntiVoid", Default = false,
@@ -1113,6 +1247,7 @@ do
     mapVoidSec:Toggle({
         Name = "Visible Void", Flag = "VisibleVoid", Default = false,
         Callback = function(v)
+            if not uiReady then return end
             killVoid.Transparency = v and 0 or 1
         end
     })
@@ -1237,8 +1372,6 @@ do
     })
 
     -- Tiles
-    local partsConnected = {}
-
     mapTileSec:Label({ Name = "Press after each new level loads." })
     mapTileSec:Button({
         Name = "Create Tile Connections (LAGS ON PRESS)",
@@ -1320,16 +1453,17 @@ do
     mapBloomSec:Label({ Name = "RealityBreak — see Enemy page." })
     mapBloomSec:Button({ Name = "Teleport to Selected Pylon", Callback = function() teleportPylon() end })
     mapBloomSec:Button({ Name = "Find Pylons",                Callback = function() updatePylonSelection() end })
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  PLAYER PAGE (SCOPED IN DO...END BLOCK)
+--  PLAYER PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    plrPage = Window:Page({ Name = "Player" })
+
     local plrHumanSec = plrPage:Section({ Name = "Humanoid", Side = 1 })
     local plrCharSec  = plrPage:Section({ Name = "Character", Side = 2 })
 
-    local ew = false; local ej = false; local ws = 16; local jp = 35
     local origWS, origJP
 
     restoreHumanoid = function()
@@ -1344,6 +1478,7 @@ do
         Name = "Enable WalkSpeed Override", Flag = "EnableWalkSpeed", Default = false,
         Callback = function(v)
             ew = v
+            if not uiReady then return end
             local h = getHuman(getChar(plr))
             if h then
                 if v then
@@ -1359,6 +1494,7 @@ do
         Name = "Enable JumpPower Override", Flag = "EnableJumpPower", Default = false,
         Callback = function(v)
             ej = v
+            if not uiReady then return end
             local h = getHuman(getChar(plr))
             if h then
                 if v then
@@ -1375,6 +1511,7 @@ do
         Min = 5, Max = 200, Default = 16, Decimals = 1,
         Callback = function(v)
             ws = v
+            if not uiReady then return end
             local h = getHuman(getChar(plr))
             if h then h.WalkSpeed = ws end
         end
@@ -1393,6 +1530,7 @@ do
         Name = "Visible Hitbox", Flag = "VisibleHitbox", Default = false,
         Callback = function(v)
             visibleHitbox = v
+            if not uiReady then return end
             if not v then
                 local root, hitbox = getRoot(getChar(plr))
                 if root and hitbox then hitbox.Transparency = 1 end
@@ -1403,23 +1541,41 @@ do
         Name = "Destroy Razorbloom (VISIBLE TO OTHERS)", Flag = "DestroyRazorbloom", Default = false,
         Callback = function(v) nrb = v end
     })
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  VISUAL PAGE (SCOPED IN DO...END BLOCK)
+--  VISUAL PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    visualPage = Window:Page({ Name = "Visual" })
+
     local visualEspSec = visualPage:Section({ Name = "ESP",        Side = 1 })
     local visualCamSec = visualPage:Section({ Name = "Camera",     Side = 2 })
     local visualVelSec = visualPage:Section({ Name = "Visualizer", Side = 2 })
 
     visualEspSec:Toggle({
         Name = "Closest Gift Tracer ESP (LAGGY)", Flag = "ClosestGiftESP", Default = false,
-        Callback = function(v) cesp = v; closestGiftTracer.Visible = v end
+        Callback = function(v)
+            cesp = v
+            if v then
+                ensureTracers()
+                refreshGifts(true)
+            else
+                hideClosestTracer()
+            end
+            if cgb then cgb.Transparency = 1 end
+        end
     })
     visualEspSec:Toggle({
         Name = "Medal ESP", Flag = "MedalESP", Default = false,
-        Callback = function(v) mesp = v; medalTracer.Visible = v end
+        Callback = function(v)
+            mesp = v
+            if v then
+                ensureTracers()
+            else
+                hideMedalTracer()
+            end
+        end
     })
     visualEspSec:Toggle({
         Name = "Cadence Instrument ESP", Flag = "InstrumentESP", Default = false,
@@ -1431,18 +1587,23 @@ do
     visualCamSec:Slider({
         Name = "Field of View", Flag = "CameraFOV",
         Min = 1, Max = 120, Default = math.floor(Camera.FieldOfView), Decimals = 1,
-        Callback = function(v) workspace.CurrentCamera.FieldOfView = v end
+        Callback = function(v)
+            if not uiReady then return end
+            workspace.CurrentCamera.FieldOfView = v
+        end
     })
     visualVelSec:Toggle({
         Name = "Velocity Visualizer", Flag = "VelocityVisualizer", Default = false,
         Callback = function(v) velov = v end
     })
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  KEYBINDS PAGE (SCOPED IN DO...END BLOCK)
+--  KEYBINDS PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    keyPage = Window:Page({ Name = "Keybinds" })
+
     local keyActionSec = keyPage:Section({ Name = "Action Keybinds", Side = 1 })
     local keyEnableSec = keyPage:Section({ Name = "Enable Keybinds", Side = 2 })
 
@@ -1582,15 +1743,15 @@ do
     makeEnableToggle("Teleport to Spawn",   "GoHome",         function(v) canGoHome           = v end)
     makeEnableToggle("Teleport to Beacon",  "GoBeacon",       function(v) canGoBeacon         = v end)
     makeEnableToggle("Cancel Collecting",   "CancelTween",    function(v) canCancelTween      = v end)
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  MUSIC PAGE (SCOPED IN DO...END BLOCK)
+--  MUSIC PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    musicPage = Window:Page({ Name = "Music" })
+
     local musicFolder   = SoundService:FindFirstChild("MusicFolder")
-    local currentCustom = nil
-    local customPlaying = false
 
     local musicControlSec = musicPage:Section({ Name = "Controls", Side = 2 })
     local musicListSec    = musicPage:Section({ Name = "Tracks",   Side = 1 })
@@ -1630,12 +1791,14 @@ do
     else
         musicListSec:Label({ Name = "MusicFolder not found in SoundService." })
     end
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  DEBUG PAGE (SCOPED IN DO...END BLOCK)
+--  DEBUG PAGE (STAGED)
 -- ═══════════════════════════════════════════════════════════════════════
-do
+stage(function()
+    debugPage = Window:Page({ Name = "Debug" })
+
     local debugUtilSec = debugPage:Section({ Name = "Utilities", Side = 1 })
     local debugMiscSec = debugPage:Section({ Name = "Misc",      Side = 2 })
 
@@ -1663,6 +1826,30 @@ do
             events.Died:FireServer("Void", shared.LeftGroundWithinBellMethod, game.ReplicatedStorage.Level.Value)
         end
     })
+    debugUtilSec:Button({
+        Name = "Fix Movement (Restore Collisions)",
+        Callback = function()
+            repairMovement()
+            notif("Movement state checked/restored.", "Debug")
+        end
+    })
+    debugUtilSec:Toggle({
+        Name = "Auto Fix Charge Noclip", Flag = "AutoFixChargeNoclip", Default = true,
+        Callback = function(v) autoFixCharge = v end
+    })
+    debugUtilSec:Button({
+        Name = "Dump Movement Diagnostics (Console/F9)",
+        Callback = function() dumpMovementDiagnostics() end
+    })
+    debugUtilSec:Button({
+        Name = "Load Saved Config Now",
+        Callback = function()
+            if savedAutoload == "" then
+                notif("No saved autoload found.", "Config"); return
+            end
+            applyConfigStaged(savedAutoload)
+        end
+    })
 
     debugMiscSec:Button({
         Name = "Rejoin (may not work)",
@@ -1679,12 +1866,13 @@ do
         Name = "Destroy GUI / Panic",
         Callback = function() destroyGui() end
     })
-end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════
---  CONNECTIONS & LOOPS
+--  CONNECTIONS & LOOPS (early stage: guards go live before the UI streams in)
 -- ═══════════════════════════════════════════════════════════════════════
 
+stage(function()
 for _, enemy in ipairs(enemies:GetChildren()) do task.spawn(handleEnemy, enemy) end
 
 if skinwalkersFolder then
@@ -1713,9 +1901,9 @@ table.insert(connections, music.Changed:Connect(function()
 end))
 
 -- Heartbeat
-local runLoop = RunService.Heartbeat:Connect(function()
+runLoop = RunService.Heartbeat:Connect(function()
     if isDead(plr) then return end
-    if tweening or cesp then refreshGifts() end
+    if tweening or cesp or (av and antiVoidSelection == 3) then refreshGifts() end
 
     local char = getChar(plr)
     local root, hitbox = getRoot(char)
@@ -1774,14 +1962,14 @@ local runLoop = RunService.Heartbeat:Connect(function()
         end
     end
 
-    if h and not h:GetAttribute("loop") then
-        h:SetAttribute("loop", true)
-        connections["walkloop"] = h:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-            if h.WalkSpeed ~= ws and ew then h.WalkSpeed = ws end
-        end)
-        connections["jumploop"] = h:GetPropertyChangedSignal("JumpPower"):Connect(function()
-            if h.JumpPower ~= jp and ej then h.JumpPower = jp end
-        end)
+    if h and (ew or ej) then ensureMoveWatchers(h) end
+
+    -- Charge-noclip guard: the bug leaves root.CanCollide=false and
+    -- AutoRotate=false after a charge; re-assert healthy values every frame.
+    -- This is instant and invisible — no resync motion of any kind.
+    if autoFixCharge and h and root then
+        if not root.CanCollide then root.CanCollide = true end
+        if not h.AutoRotate then h.AutoRotate = true end
     end
 
     if nrb then
@@ -1790,45 +1978,41 @@ local runLoop = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Glider / Fly loop
-local LV
+-- Glider / Fly loop (the LinearVelocity is created lazily on first boost,
+-- so nothing is attached to the character while the script loads)
 task.spawn(function()
-    local root = getRoot(getChar(plr))
-    LV = root:FindFirstChild("LV_NULLGUI")
-    if not LV then
-        LV = Instance.new("LinearVelocity")
-        LV.Name = "LV_NULLGUI"
-        LV.Attachment0 = root.RootAttachment
-        LV.RelativeTo  = Enum.ActuatorRelativeTo.World
-        LV.MaxForce    = math.huge
-        LV.VectorVelocity = Vector3.zero
-        LV.Enabled = false; LV.Parent = root
-    end
     while task.wait() do
+        if destroying then break end
         if gliderBoost then
-            root = getRoot(getChar(plr))
-            LV = root:FindFirstChild("LV_NULLGUI")
-            if not LV then
-                LV = Instance.new("LinearVelocity")
-                LV.Name = "LV_NULLGUI"
-                LV.Attachment0 = root.RootAttachment
-                LV.RelativeTo  = Enum.ActuatorRelativeTo.World
-                LV.MaxForce    = math.huge
-                LV.VectorVelocity = Vector3.zero
-                LV.Enabled = false; LV.Parent = root
-            end
-            Camera = workspace.CurrentCamera
-            local lookVector = Camera.CFrame.LookVector
-            if not isDead(plr) then
+            local root = getRoot(getChar(plr))
+            if root and not isDead(plr) then
+                local LV = root:FindFirstChild("LV_NULLGUI")
+                if not LV then
+                    LV = Instance.new("LinearVelocity")
+                    LV.Name = "LV_NULLGUI"
+                    LV.Attachment0 = root:FindFirstChild("RootAttachment") or root:FindFirstChildOfClass("Attachment")
+                    LV.RelativeTo  = Enum.ActuatorRelativeTo.World
+                    LV.MaxForce    = math.huge
+                    LV.VectorVelocity = Vector3.zero
+                    LV.Enabled = false
+                    LV.Parent = root
+                end
+                Camera = workspace.CurrentCamera
+                local lookVector = Camera.CFrame.LookVector
                 LV.Enabled = true
                 LV.VectorVelocity = lookVector * 100
                 local targetCF = CFrame.lookAt(root.Position, root.Position + lookVector)
                 root.CFrame = root.CFrame:Lerp(targetCF, 0.15)
             end
         else
-            LV.Enabled = false; LV.VectorVelocity = Vector3.zero
+            local ch = plr.Character
+            local root = ch and getRoot(ch)
+            local LV = root and root:FindFirstChild("LV_NULLGUI")
+            if LV and LV.Enabled then
+                LV.Enabled = false
+                LV.VectorVelocity = Vector3.zero
+            end
         end
-        if destroying then break end
     end
 end)
 
@@ -1906,11 +2090,11 @@ RunService:BindToRenderStep("NULLGUI_DRAWING", Enum.RenderPriority.Camera.Value 
             end
             closestGiftTracer.Visible = true; closestGiftTracer.From = from; closestGiftTracer.To = to
         else
-            closestGiftTracer.Visible = false
+            hideClosestTracer()
             if cgb then cgb.Transparency = 1 end
         end
     else
-        closestGiftTracer.Visible = false
+        hideClosestTracer()
         if cgb then cgb.Transparency = 1 end
     end
 
@@ -1943,13 +2127,13 @@ RunService:BindToRenderStep("NULLGUI_DRAWING", Enum.RenderPriority.Camera.Value 
                 end
                 medalTracer.Visible = true; medalTracer.From = from; medalTracer.To = to
             else
-                medalTracer.Visible = false
+                hideMedalTracer()
             end
         else
-            medalTracer.Visible = false
+            hideMedalTracer()
         end
     else
-        medalTracer.Visible = false
+        hideMedalTracer()
     end
 end)
 
@@ -2003,6 +2187,7 @@ RunService:BindToRenderStep("NULLGUI_HAZARD", Enum.RenderPriority.Last.Value + 2
         end
     end
 end)
+end, true)
 
 -- ═══════════════════════════════════════════════════════════════════════
 --  DESTROY / PANIC UNLOAD
@@ -2013,7 +2198,7 @@ function destroyGui()
     destroying = true
     notif("Destroying GUI...", "Nullscape GUI")
 
-    runLoop:Disconnect()
+    if runLoop then runLoop:Disconnect() end
     RunService:UnbindFromRenderStep("NULLGUI_DRAWING")
     RunService:UnbindFromRenderStep("NULLGUI_HAZARD")
 
@@ -2021,8 +2206,8 @@ function destroyGui()
     bulletprots:Destroy()
 
     for obj, line in pairs(tracers) do line:Destroy(); tracers[obj] = nil end
-    closestGiftTracer:Destroy()
-    medalTracer:Destroy()
+    if closestGiftTracer then closestGiftTracer:Destroy() end
+    if medalTracer then medalTracer:Destroy() end
     if cgb then cgb:Destroy() end
     if mb  then mb:Destroy()  end
 
@@ -2041,7 +2226,11 @@ function destroyGui()
 
     tweening      = false
     gliderBoost   = false
-    if LV then LV:Destroy() end
+    do
+        local chrRoot = plr.Character and getRoot(plr.Character)
+        local lv = chrRoot and chrRoot:FindFirstChild("LV_NULLGUI")
+        if lv then lv:Destroy() end
+    end
     velocityPart:Destroy()
 
     if stopCustomMusic then pcall(stopCustomMusic) end
@@ -2058,16 +2247,54 @@ function destroyGui()
 end
 
 -- ═══════════════════════════════════════════════════════════════════════
---  FINALIZE
+--  FINALIZE (staged: pages build one per frame; config autoload suppressed)
 -- ═══════════════════════════════════════════════════════════════════════
 
-local destroyMarker = Instance.new("Part")
-destroyMarker.Name   = "DESTROYNULLGUI"
-destroyMarker.Parent = ReplicatedStorage
-destroyMarker.Destroying:Once(destroyGui)
+-- The juanitahaxx library stores configs in a HARDCODED, SHARED directory
+-- ("juanitaaaaaaa"). Window:Init() synchronously replays autoload.json and
+-- fires element callbacks — including stale flags saved by other scripts.
+-- We blank it for the duration of Init and restore it afterwards; the saved
+-- data can then be applied on demand via the Debug page.
+local AUTOLOAD_PATH = "juanitaaaaaaa/autoload.json"
 
-refreshGifts(true)
+task.spawn(function()
+    pcall(function()
+        savedAutoload = readfile(AUTOLOAD_PATH)
+        if savedAutoload == nil then savedAutoload = "" end
+        if savedAutoload ~= "" then writefile(AUTOLOAD_PATH, "") end
+    end)
 
-Window:Init()
+    -- Build modules spread across frames: background listeners + loops run
+    -- first (guards go live early), then window shell and each page.
+    for _, stageList in ipairs({ earlyStages, buildStages }) do
+        for _, buildStage in ipairs(stageList) do
+            local ok, err = pcall(buildStage)
+            if not ok then warn("[NULL GUI] stage error:", err) end
+            task.wait()
+        end
+    end
 
-notif("Null GUI Executed Successfully!", "Nullscape GUI")
+    local destroyMarker = Instance.new("Part")
+    destroyMarker.Name   = "DESTROYNULLGUI"
+    destroyMarker.Parent = ReplicatedStorage
+    destroyMarker.Destroying:Once(destroyGui)
+
+    Window:Init()
+
+    -- Restore the shared autoload file now that Init is done. We do NOT
+    -- replay it automatically; use "Load Saved Config Now" on the Debug page.
+    pcall(function()
+        if savedAutoload ~= "" then writefile(AUTOLOAD_PATH, savedAutoload) end
+    end)
+
+    uiReady = true
+
+    -- One-shot movement repair shortly after load. Mirrors what the gift
+    -- collector does that "un-breaks" movement (zero velocity, sync Hitbox
+    -- to root, reset humanoid state) without needing any gifts nearby.
+    task.delay(4, function()
+        if not destroying then repairMovement() end
+    end)
+
+    notif("Null GUI Executed Successfully!", "Nullscape GUI")
+end)
