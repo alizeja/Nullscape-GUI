@@ -67,29 +67,41 @@ end
 -- ── Game References ───────────────────────────────────────────────────────────
 
 local plr              = Players.LocalPlayer
-local events           = ReplicatedStorage.Events
+local events           = ReplicatedStorage:WaitForChild("Events")
 local Camera           = workspace.CurrentCamera
-local spawnPart        = workspace.Spawn
-local items            = workspace.Item_Pools
-local gifts            = items.Gift
-local goldengifts      = items.GoldenGift
-local tripmines        = items.Tripmine
+local spawnPart        = workspace:WaitForChild("Spawn")
+local items            = workspace:WaitForChild("Item_Pools")
+local gifts            = items:WaitForChild("Gift")
+local goldengifts      = items:WaitForChild("GoldenGift")
+local tripmines        = items:WaitForChild("Tripmine")
 local goldentripmines  = items:FindFirstChild("GoldTripmines")
-local enemies          = workspace.Enemies
+local enemies          = workspace:WaitForChild("Enemies")
+local skinwalkersFolder= workspace:FindFirstChild("Skinwalkers")
 local selection        = workspace:FindFirstChild("Select")
-local currentRooms     = workspace.CurrentRooms
-local pads             = workspace.JumpPads
-local code             = ReplicatedStorage.CodeVal
-local music            = ReplicatedStorage.MusicVal
-local curses           = ReplicatedStorage.CurseFolder.Curses
-local gcurses          = ReplicatedStorage.GreaterCurseFolder.Curses
-local enemiesFolder    = ReplicatedStorage.EnemyFolder
-local upgrades         = ReplicatedStorage.UpgradeFolder.Upgrades
-local beacons          = workspace.Beacons
-local destroyFolder    = workspace.DestroyFolder
-local bullets          = items.Bullet
-local counters         = ReplicatedStorage.GiftCounters
-local magnet           = events.MovementGiftMagnet
+local currentRooms     = workspace:WaitForChild("CurrentRooms")
+local pads             = workspace:WaitForChild("JumpPads")
+local code             = ReplicatedStorage:WaitForChild("CodeVal")
+local music            = ReplicatedStorage:WaitForChild("MusicVal")
+local curses           = ReplicatedStorage:WaitForChild("CurseFolder"):WaitForChild("Curses")
+local gcurses          = ReplicatedStorage:WaitForChild("GreaterCurseFolder"):WaitForChild("Curses")
+local enemiesFolder    = ReplicatedStorage:WaitForChild("EnemyFolder")
+local upgrades         = ReplicatedStorage:WaitForChild("UpgradeFolder"):WaitForChild("Upgrades")
+local beacons          = workspace:WaitForChild("Beacons")
+local destroyFolder    = workspace:WaitForChild("DestroyFolder")
+local killVoid         = workspace:WaitForChild("KillVoid")
+local bullets          = items:WaitForChild("Bullet")
+local counters         = ReplicatedStorage:WaitForChild("GiftCounters")
+local magnet           = events:WaitForChild("MovementGiftMagnet")
+
+local function notifyBindable(tag, msg)
+    local nb = events:FindFirstChild("NotifyBindable")
+    if not nb then return end
+    if nb:IsA("RemoteEvent") then
+        nb:FireServer(tag, msg)
+    else
+        nb:Fire(tag, msg)
+    end
+end
 
 -- ── Protection Folders & Visual Instances ─────────────────────────────────────
 
@@ -106,7 +118,8 @@ velocityPart.Name = "VelocityVisualizer"
 velocityPart.Anchored = true
 velocityPart.CanCollide = false
 velocityPart.CanTouch = false
-velocityPart.Material = Enum.Material.Air
+velocityPart.Material = Enum.Material.Neon
+velocityPart.Transparency = 1
 velocityPart.Color = Color3.new(1,1,1)
 velocityPart.Size = Vector3.new(0.1,0.1,1)
 velocityPart.Parent = workspace
@@ -114,6 +127,7 @@ local vpBox = Instance.new("BoxHandleAdornment")
 vpBox.Color3 = Color3.new(1,1,1)
 vpBox.AlwaysOnTop = true
 vpBox.ZIndex = 0
+vpBox.Transparency = 1
 vpBox.Adornee = velocityPart
 vpBox.Parent = velocityPart
 
@@ -152,6 +166,8 @@ local nrb             = false
 local nfb             = false
 local gliderBoost     = false
 local connections     = {}
+local stopCustomMusic -- assigned in the Music page section
+local restoreHumanoid -- assigned in the Player page section
 
 local clientenemies = { "Kolona","Voidbreaker","Skinwalker","Operator","Scrapmaw" }
 
@@ -165,7 +181,7 @@ local cgb, mb
 
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/kee-67/juanitahaxx-modified/refs/heads/main/Library.lua"))()
 
-function notif(text, title, dur)
+notif = function(text, title, dur)
     if not notifOn then return end
     Library:Notification(
         (title and ("[" .. title .. "] ") or "") .. (text or ""),
@@ -295,10 +311,14 @@ local function refreshGifts(skip, golden)
     if tick() - lastRefresh < REFRESH_RATE then return end
     lastRefresh = tick()
 
-    for i = 1, SCAN_SIZE do
+    for _ = 1, SCAN_SIZE do
         local gift = normalList[scanIndex]
-        if not gift then scanIndex = 1 break end
-        if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+        if not gift then
+            scanIndex = 1
+            table.clear(availableNormalGifts)
+            break
+        end
+        if gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             if (rootPos - gift.Position).Magnitude <= 500 then
                 table.insert(availableNormalGifts, gift)
             end
@@ -306,10 +326,14 @@ local function refreshGifts(skip, golden)
         scanIndex += 1
     end
 
-    for i = 1, SCAN_SIZE do
+    for _ = 1, SCAN_SIZE do
         local gift = goldenList[scanIndexTwo]
-        if not gift then scanIndexTwo = 1 break end
-        if gift and gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
+        if not gift then
+            scanIndexTwo = 1
+            table.clear(availableGoldenGifts)
+            break
+        end
+        if gift.Parent and gift.Transparency ~= 1 and gift:FindFirstChild("Collect", true) then
             if (rootPos - gift.Position).Magnitude <= 500 then
                 table.insert(availableGoldenGifts, gift)
             end
@@ -331,6 +355,14 @@ local function getActiveTripmines()
     return active
 end
 
+local function getPosSize(obj)
+    if obj:IsA("Model") then
+        local cf, size = obj:GetBoundingBox()
+        return cf.Position, size
+    end
+    return obj.Position, obj.Size
+end
+
 local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     local char = getChar(plr)
     local root = getRoot(char)
@@ -344,13 +376,13 @@ local function pathBlocked(targetPos, activeTripmines, activeEnemies)
     local maxY = math.max(rootPos.Y + fakeSize.Y/2, targetPos.Y + fakeSize.Y/2)
     local maxZ = math.max(rootPos.Z + fakeSize.Z/2, targetPos.Z + fakeSize.Z/2)
     for _, mine in activeTripmines do
-        local pos = mine.Position; local size = mine.Size
+        local pos, size = getPosSize(mine)
         if maxX >= pos.X-size.X/2 and minX <= pos.X+size.X/2 and
            maxY >= pos.Y-size.Y/2 and minY <= pos.Y+size.Y/2 and
            maxZ >= pos.Z-size.Z/2 and minZ <= pos.Z+size.Z/2 then return true end
     end
     for _, enemy in activeEnemies do
-        local pos = enemy.Position; local size = enemy.Size
+        local pos, size = getPosSize(enemy)
         if maxX >= pos.X-size.X/2 and minX <= pos.X+size.X/2 and
            maxY >= pos.Y-size.Y/2 and minY <= pos.Y+size.Y/2 and
            maxZ >= pos.Z-size.Z/2 and minZ <= pos.Z+size.Z/2 then return true end
@@ -389,7 +421,9 @@ local function getClosestAnyGift()
     local function check(list)
         for i = #list, 1, -1 do
             local gift = list[i]
-            if gift and gift.Parent and gift.Transparency == 0 and gift:FindFirstChild("Collect") ~= nil then
+            if not gift or not gift.Parent or gift.Transparency == 1 or not gift:FindFirstChild("Collect", true) then
+                table.remove(list, i)
+            else
                 local dist = (gift.Position - rootPos).Magnitude
                 if dist < shortest then shortest = dist; closest = gift end
             end
@@ -505,9 +539,14 @@ local function GetClosestPad()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     rayParams.FilterDescendantsInstances = {localChar}
     local badColor = Color3.fromRGB(152, 24, 24)
+    local function isBadColor(c)
+        return math.abs(c.R - badColor.R) < 0.02
+           and math.abs(c.G - badColor.G) < 0.02
+           and math.abs(c.B - badColor.B) < 0.02
+    end
     local closest, dist = nil, 100
     for _, part in pads:GetChildren() do
-        if part.Color == badColor then continue end
+        if isBadColor(part.Color) then continue end
         local mag = (root.Position - part.Position).Magnitude
         if mag > dist then continue end
         local result = workspace:Raycast(root.Position, part.Position - root.Position, rayParams)
@@ -523,7 +562,6 @@ end
 local magSlider -- forward declaration
 
 local function collect(which)
-    local activeTripmines = getActiveTripmines()
     if magSlider then magSlider:Set(5) end
 
     local function collectGolden()
@@ -533,26 +571,29 @@ local function collect(which)
 
         local tween
         local retryCount = 0
-        while tweening do
-            local char = getChar(plr); local root = getRoot(char)
-            if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
-            refreshGifts(true, true)
-            local gift = getClosestGift(availableGoldenGifts)
-            if not gift then
-                retryCount += 1
-                if retryCount > 3 then
-                    notif("No golden gifts found nearby.", "Gift Not Found")
-                    break
+        local ok, err = pcall(function()
+            while tweening do
+                local char = getChar(plr); local root = getRoot(char)
+                if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
+                refreshGifts(true, true)
+                local gift = getClosestGift(availableGoldenGifts)
+                if not gift then
+                    retryCount += 1
+                    if retryCount > 3 then
+                        notif("No golden gifts found nearby.", "Gift Not Found")
+                        break
+                    end
+                    task.wait(0.4)
+                    continue
                 end
-                task.wait(0.4)
-                continue
+                retryCount = 0
+                tween = goTo(gift, getActiveTripmines(), enemies:GetChildren())
+                if tween then tween.Completed:Wait() end
+                task.wait(.02)
             end
-            retryCount = 0
-            tween = goTo(gift, activeTripmines, enemies:GetChildren())
-            if tween then tween.Completed:Wait() end
-            task.wait(.02)
-        end
-        if tween then tween:Cancel() end
+        end)
+        if not ok then warn("[NULL GUI] Golden collection error:", err) end
+        if tween then pcall(function() tween:Cancel() end) end
         tweening = false
         local humanoid = getHuman(getChar(plr))
         if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Landed) end
@@ -565,26 +606,29 @@ local function collect(which)
 
         local tween
         local retryCount = 0
-        while tweening do
-            local char = getChar(plr); local root = getRoot(char)
-            if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
-            refreshGifts(true, false)
-            local gift = getClosestGift(availableNormalGifts)
-            if not gift then
-                retryCount += 1
-                if retryCount > 3 then
-                    notif("No gifts found nearby.", "Gift Not Found")
-                    break
+        local ok, err = pcall(function()
+            while tweening do
+                local char = getChar(plr); local root = getRoot(char)
+                if root then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
+                refreshGifts(true, false)
+                local gift = getClosestGift(availableNormalGifts)
+                if not gift then
+                    retryCount += 1
+                    if retryCount > 3 then
+                        notif("No gifts found nearby.", "Gift Not Found")
+                        break
+                    end
+                    task.wait(0.4)
+                    continue
                 end
-                task.wait(0.4)
-                continue
+                retryCount = 0
+                tween = goTo(gift, getActiveTripmines(), enemies:GetChildren())
+                if tween then tween.Completed:Wait() end
+                task.wait(.02)
             end
-            retryCount = 0
-            tween = goTo(gift, activeTripmines, enemies:GetChildren())
-            if tween then tween.Completed:Wait() end
-            task.wait(.02)
-        end
-        if tween then tween:Cancel() end
+        end)
+        if not ok then warn("[NULL GUI] Normal collection error:", err) end
+        if tween then pcall(function() tween:Cancel() end) end
         tweening = false
         local humanoid = getHuman(getChar(plr))
         if humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Landed) end
@@ -665,8 +709,8 @@ local function disableEnemy(enemyName, willDestroy, willBreakAI, failNotif)
             end
         end,
         Skinwalker = function(name, willDestroy)
-            local skinwalkers = workspace.Skinwalkers
-            if #skinwalkers:GetChildren() == 0 then
+            local skinwalkers = skinwalkersFolder or workspace:FindFirstChild("Skinwalkers")
+            if not skinwalkers or #skinwalkers:GetChildren() == 0 then
                 if failNotif then notif("Husk isn't following you yet.", "Enemy") end
                 return false
             end
@@ -846,18 +890,16 @@ do
     local passageCountLabel = mainRightSec:Label({ Name = counterStr(passageCounter, "Passage Golden Gifts") })
     local tripmineCountLabel= mainRightSec:Label({ Name = tripmineStr(tripmineCounter) })
 
-    table.insert(connections, giftCounter.Changed:Connect(function()
-        giftCountLabel:SetText(counterStr(giftCounter, "Gifts"))
-    end))
-    table.insert(connections, goldgiftCounter.Changed:Connect(function()
-        goldCountLabel:SetText(counterStr(goldgiftCounter, "Golden Gifts"))
-    end))
-    table.insert(connections, passageCounter.Changed:Connect(function()
-        passageCountLabel:SetText(counterStr(passageCounter, "Passage Golden Gifts"))
-    end))
-    table.insert(connections, tripmineCounter.Changed:Connect(function()
-        tripmineCountLabel:SetText(tripmineStr(tripmineCounter))
-    end))
+    local function bindCounter(counter, label, getText)
+        local function update() label:SetText(getText()) end
+        table.insert(connections, counter.Changed:Connect(update))
+        table.insert(connections, counter:GetAttributeChangedSignal("Collected"):Connect(update))
+        table.insert(connections, counter:GetAttributeChangedSignal("MaxGifts"):Connect(update))
+    end
+    bindCounter(giftCounter,     giftCountLabel,     function() return counterStr(giftCounter, "Gifts") end)
+    bindCounter(goldgiftCounter, goldCountLabel,     function() return counterStr(goldgiftCounter, "Golden Gifts") end)
+    bindCounter(passageCounter,  passageCountLabel,  function() return counterStr(passageCounter, "Passage Golden Gifts") end)
+    bindCounter(tripmineCounter, tripmineCountLabel, function() return tripmineStr(tripmineCounter) end)
 end
 
 -- ═══════════════════════════════════════════════════════════════════════
@@ -900,6 +942,7 @@ do
             fireSig(events.UpgradesChanged.OnClientEvent, {[name] = intv.Value})
         elseif intv then
             intv:Destroy()
+            fireSig(events.UpgradesChanged.OnClientEvent, {[name] = 0})
         else
             fireSig(events.UpgradesChanged.OnClientEvent, {[name] = 0})
         end
@@ -931,11 +974,11 @@ do
         enemyWhySec:Button({
             Name = "Add "..display.." This/Next Round",
             Callback = function()
-                local folder = enemiesFolder.Enemies
+                local folder = enemiesFolder:WaitForChild("Enemies")
                 if not folder:FindFirstChild(enemyName) then
                     notif(display.." template not found.", "Enemy"); return
                 end
-                if not enemiesFolder.ActiveEnemies:FindFirstChild(enemyName) then
+                if not enemiesFolder:WaitForChild("ActiveEnemies"):FindFirstChild(enemyName) then
                     local int = Instance.new("IntValue")
                     int.Name = enemyName; int.Value = 1
                     int.Parent = enemiesFolder.ActiveEnemies
@@ -956,10 +999,10 @@ do
 
                     if ReplicatedStorage.InRound.Value then
                         spawnIt()
-                        events.NotifyBindable:Fire('<font color="#ff0000">WHY</font>', display..' <font color="#ff0000">added</font>.')
+                        notifyBindable('<font color="#ff0000">WHY</font>', display..' <font color="#ff0000">added</font>.')
                     else
                         connections[enemyName] = ReplicatedStorage.InRound.Changed:Once(function() task.wait(.1) spawnIt() end)
-                        events.NotifyBindable:Fire('<font color="#ff0000">WHY</font>', display..' added <font color="#ff0000">next round</font>.')
+                        notifyBindable('<font color="#ff0000">WHY</font>', display..' added <font color="#ff0000">next round</font>.')
                     end
                 else
                     notif(display.." is already here or destroyed.", "Enemy")
@@ -1048,6 +1091,7 @@ do
 
     local antiVoidSelection = 1
     local lp = 500
+    local lastAvNoGift = 0
 
     mapVoidSec:Toggle({
         Name = "Anti Void", Flag = "AntiVoid", Default = false,
@@ -1069,7 +1113,7 @@ do
     mapVoidSec:Toggle({
         Name = "Visible Void", Flag = "VisibleVoid", Default = false,
         Callback = function(v)
-            workspace.KillVoid.Transparency = v and 0 or 1
+            killVoid.Transparency = v and 0 or 1
         end
     })
 
@@ -1101,8 +1145,8 @@ do
     end
 
     local function activateAltar(justTeleport)
-        if activating and justTeleport == false then return end
-        justTeleport = if justTeleport == nil then false else justTeleport
+        if activating then return end
+        justTeleport = justTeleport == true
         if not justTeleport then activating = true end
         if not selectedPrompt or not selectedPrompt.Parent then
             notif("Altar no longer exists.", "Not found"); activating = false; return
@@ -1120,6 +1164,7 @@ do
             Camera.CFrame = pos; root.CFrame = pos; hitbox.CFrame = pos
         until (root.Position - pPart.Position).Magnitude < 6 or tick()-start >= 3
         if justTeleport then return end
+        if not selectedPrompt or not selectedPrompt.Parent then activating = false; return end
         fireproximityprompt(selectedPrompt)
         task.wait(selectedPrompt.HoldDuration)
         root.CFrame = prev; hitbox.CFrame = prev
@@ -1179,10 +1224,14 @@ do
         Name = "Destroy Fake Beacons", Flag = "DestroyFakeBeacons", Default = false,
         Callback = function(v)
             nfb = v
+            if connections["nfb"] then connections["nfb"]:Disconnect(); connections["nfb"] = nil end
             if nfb then
                 for _, b in beacons:GetChildren() do
                     if b.Name == "BeaconMirage" then b:Destroy() end
                 end
+                connections["nfb"] = beacons.ChildAdded:Connect(function(b)
+                    if b.Name == "BeaconMirage" then b:Destroy() end
+                end)
             end
         end
     })
@@ -1204,7 +1253,10 @@ do
                             p.Material = Enum.Material.Air
                         end
                     end)
-                    p.Destroying:Once(function() partsConnected[p]:Disconnect(); partsConnected[p] = nil end)
+                    p.Destroying:Once(function()
+                        local c = partsConnected[p]
+                        if c then c:Disconnect(); partsConnected[p] = nil end
+                    end)
                     if noice   and p.Material == Enum.Material.Ice           then p.Material = Enum.Material.Air end
                     if noflesh and p.Material == Enum.Material.CorrodedMetal then p.Material = Enum.Material.Air end
                 end
@@ -1278,13 +1330,29 @@ do
     local plrCharSec  = plrPage:Section({ Name = "Character", Side = 2 })
 
     local ew = false; local ej = false; local ws = 16; local jp = 35
+    local origWS, origJP
+
+    restoreHumanoid = function()
+        local h = getHuman(getChar(plr))
+        if h then
+            h.WalkSpeed = origWS or 16
+            h.JumpPower = origJP or 35
+        end
+    end
 
     plrHumanSec:Toggle({
         Name = "Enable WalkSpeed Override", Flag = "EnableWalkSpeed", Default = false,
         Callback = function(v)
             ew = v
             local h = getHuman(getChar(plr))
-            if h then h.WalkSpeed = ws end
+            if h then
+                if v then
+                    origWS = h.WalkSpeed
+                    h.WalkSpeed = ws
+                else
+                    h.WalkSpeed = origWS or 16
+                end
+            end
         end
     })
     plrHumanSec:Toggle({
@@ -1292,7 +1360,14 @@ do
         Callback = function(v)
             ej = v
             local h = getHuman(getChar(plr))
-            if h then h.JumpPower = jp end
+            if h then
+                if v then
+                    origJP = h.JumpPower
+                    h.JumpPower = jp
+                else
+                    h.JumpPower = origJP or 35
+                end
+            end
         end
     })
     plrHumanSec:Slider({
@@ -1388,8 +1463,12 @@ do
             local medal = beacons:FindFirstChild("Medal")
             local root, hitbox = getRoot(getChar(plr))
             if medal and root and not isDead(plr) then
-                local sp = root.Position; root.Position = medal.Position
-                task.wait(.2); root.Position = sp
+                local sp = root.Position
+                root.Position = medal.Position
+                if hitbox then hitbox.Position = medal.Position end
+                task.wait(.2)
+                root.Position = sp
+                if hitbox then hitbox.Position = sp end
             end
         end
     })
@@ -1442,14 +1521,17 @@ do
             Camera.CFrame = cf
             local sending = true
             task.spawn(function() while sending do Camera.CFrame = cf; task.wait() end end)
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-            task.wait(0.01); sending = false
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            pcall(function()
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(0.01)
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end)
+            sending = false
             task.delay(0.05, function() canPress = true end)
         end
     })
     keyActionSec:Label({ Name = "Glider Boost / Fly (HOLD)" }):Keybind({
-        Flag = "KB_GliderBoost", Default = Enum.KeyCode.Q, Mode = "Hold",
+        Flag = "KB_GliderBoost", Default = Enum.KeyCode.LeftAlt, Mode = "Hold",
         Callback = function(holding)
             if not holding then gliderBoost = false; return end
             if canGliderBoost then gliderBoost = holding end
@@ -1522,6 +1604,7 @@ do
         if music.Value then music.Value:Stop() end
         music.Value = nil; currentCustom = nil; customPlaying = false
     end
+    stopCustomMusic = stopCurrentMusic
 
     local function playMusic(themusic)
         stopCurrentMusic()
@@ -1604,9 +1687,11 @@ end
 
 for _, enemy in ipairs(enemies:GetChildren()) do task.spawn(handleEnemy, enemy) end
 
-table.insert(connections, workspace.Skinwalkers.ChildAdded:Connect(function(enemy)
-    enemy.Name = "Skinwalker"; handleEnemy(enemy)
-end))
+if skinwalkersFolder then
+    table.insert(connections, skinwalkersFolder.ChildAdded:Connect(function(enemy)
+        enemy.Name = "Skinwalker"; handleEnemy(enemy)
+    end))
+end
 table.insert(connections, enemies.ChildAdded:Connect(function(enemy)
     if enemy.Name == "Oblivion" and dso then enemy:Destroy(); return end
     if enemy.Name == "RealityBreak2" then enemy.Name = "RealityBreak" end
@@ -1629,8 +1714,8 @@ end))
 
 -- Heartbeat
 local runLoop = RunService.Heartbeat:Connect(function()
-    if (tweening or cesp) and not isDead(plr) then refreshGifts() end
     if isDead(plr) then return end
+    if tweening or cesp then refreshGifts() end
 
     local char = getChar(plr)
     local root, hitbox = getRoot(char)
@@ -1643,7 +1728,7 @@ local runLoop = RunService.Heartbeat:Connect(function()
 
     if av and root then
         local pos = spawnPart.Position + Vector3.new(0,4,0)
-        if root.Position.Y <= workspace.KillVoid.Position.Y + 75 then
+        if root.Position.Y <= killVoid.Position.Y + 75 then
             if antiVoidSelection == 1 then
                 root.Position = pos
             elseif antiVoidSelection == 2 then
@@ -1652,8 +1737,15 @@ local runLoop = RunService.Heartbeat:Connect(function()
             elseif antiVoidSelection == 3 then
                 local giftList = #availableNormalGifts > 0 and availableNormalGifts or availableGoldenGifts
                 local gift = getClosestGift(giftList)
-                if gift then root.Position = gift.Position
-                else root.Position = pos; notif("No gift nearby! Falling back to spawn.", "Anti Void") end
+                if gift then
+                    root.Position = gift.Position
+                else
+                    root.Position = pos
+                    if tick() - lastAvNoGift >= 5 then
+                        lastAvNoGift = tick()
+                        notif("No gift nearby! Falling back to spawn.", "Anti Void")
+                    end
+                end
             end
             if hitbox then hitbox.Position = root.Position end
         end
@@ -1695,12 +1787,6 @@ local runLoop = RunService.Heartbeat:Connect(function()
     if nrb then
         local rb = char:FindFirstChild("Razorbloom")
         if rb then rb:Destroy(); notif("Razorbloom destroyed.", "Success") end
-    end
-
-    if nfb then
-        for _, b in beacons:GetChildren() do
-            if b.Name == "BeaconMirage" then b:Destroy() end
-        end
     end
 end)
 
@@ -1801,11 +1887,12 @@ RunService:BindToRenderStep("NULLGUI_DRAWING", Enum.RenderPriority.Camera.Value 
             local from = Vector2.new(vp.X/2, vp.Y/2)
             local camCF = Camera.CFrame
             local dot = camCF.LookVector:Dot((gift.Position - camCF.Position).Unit)
-            if not gift:FindFirstChild("BoxHandleAdornment") then
-                local box = cgb or Instance.new("BoxHandleAdornment")
-                cgb = box; box.Size = gift.Size; box.Adornee = gift
-                box.AlwaysOnTop = true; box.ZIndex = 0
-                box.Color3 = Color3.new(1,1,0); box.Transparency = 0.5; box.Parent = gift
+            if not cgb or cgb.Adornee ~= gift then
+                if cgb then cgb:Destroy() end
+                cgb = Instance.new("BoxHandleAdornment")
+                cgb.Size = gift.Size; cgb.Adornee = gift
+                cgb.AlwaysOnTop = true; cgb.ZIndex = 0
+                cgb.Color3 = Color3.new(1,1,0); cgb.Transparency = 0.5; cgb.Parent = gift
             end
             local to
             if visible and dot > 0 then
@@ -1837,11 +1924,12 @@ RunService:BindToRenderStep("NULLGUI_DRAWING", Enum.RenderPriority.Camera.Value 
                 local from = Vector2.new(vp.X/2, vp.Y/2)
                 local camCF = Camera.CFrame
                 local dot = camCF.LookVector:Dot((medal.Position - camCF.Position).Unit)
-                if not medal:FindFirstChild("BoxHandleAdornment") then
-                    local box = mb or Instance.new("BoxHandleAdornment")
-                    mb = box; box.Size = medal.Size; box.Adornee = medal
-                    box.AlwaysOnTop = true; box.ZIndex = 0
-                    box.Color3 = Color3.new(1,1,1); box.Transparency = 0.75; box.Parent = medal
+                if not mb or mb.Adornee ~= medal then
+                    if mb then mb:Destroy() end
+                    mb = Instance.new("BoxHandleAdornment")
+                    mb.Size = medal.Size; mb.Adornee = medal
+                    mb.AlwaysOnTop = true; mb.ZIndex = 0
+                    mb.Color3 = Color3.new(1,1,1); mb.Transparency = 0.75; mb.Parent = medal
                 end
                 local to
                 if visible and dot > 0 then
@@ -1956,7 +2044,11 @@ function destroyGui()
     if LV then LV:Destroy() end
     velocityPart:Destroy()
 
-    magnet:Fire({ Reset = math.huge })
+    if stopCustomMusic then pcall(stopCustomMusic) end
+    if restoreHumanoid then pcall(restoreHumanoid) end
+    if magSlider then pcall(function() magSlider:Set(1) end) end
+
+    magnet:Fire({ Reset = 1 })
 
     local marker = ReplicatedStorage:FindFirstChild("DESTROYNULLGUI")
     if marker then marker:Destroy() end
