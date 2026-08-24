@@ -183,6 +183,7 @@ local currentCustom
 local savedAutoload       = "" -- shared autoload.json captured during load; replayable via Debug page
 local autoFixCharge       = true -- enforce root.CanCollide / humanoid.AutoRotate (fixes charge noclip)
 local runLoop             -- heartbeat connection; assigned in the connections/loops stage
+local applyingConfig      = false -- blocks keybind action-fires while a config is being applied
 
 -- Staged module loader: modules register via stage(); the runner at the
 -- bottom executes them one per frame after execution. Early stages
@@ -318,6 +319,7 @@ local function applyConfigStaged(configJson)
         return
     end
     task.spawn(function()
+        applyingConfig = true
         local applied = 0
         for flagName, value in pairs(decoded) do
             if destroying then break end
@@ -334,6 +336,7 @@ local function applyConfigStaged(configJson)
             end
             task.wait()
         end
+        applyingConfig = false
         notif(("Config loaded (%d settings)."):format(applied), "Config")
     end)
 end
@@ -1611,15 +1614,22 @@ stage(function()
 
     keyActionSec:Label({ Name = "Collect Normal Gifts" }):Keybind({
         Flag = "KB_CollectNormal", Default = Enum.KeyCode.Nine, Mode = "Toggle",
-        Callback = function() if canEzCollectNormal then task.spawn(function() collect("normal") end) end end
+        Callback = function()
+            if not uiReady or applyingConfig then return end
+            if canEzCollectNormal then task.spawn(function() collect("normal") end) end
+        end
     })
     keyActionSec:Label({ Name = "Collect Golden Gifts" }):Keybind({
         Flag = "KB_CollectGolden", Default = Enum.KeyCode.Zero, Mode = "Toggle",
-        Callback = function() if canEzCollectGolden then task.spawn(function() collect("golden") end) end end
+        Callback = function()
+            if not uiReady or applyingConfig then return end
+            if canEzCollectGolden then task.spawn(function() collect("golden") end) end
+        end
     })
     keyActionSec:Label({ Name = "Get Medal" }):Keybind({
         Flag = "KB_GetMedal", Default = Enum.KeyCode.Eight, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canEzCollectMedal then return end
             local medal = beacons:FindFirstChild("Medal")
             local root, hitbox = getRoot(getChar(plr))
@@ -1635,15 +1645,22 @@ stage(function()
     })
     keyActionSec:Label({ Name = "Disable All Enemies" }):Keybind({
         Flag = "KB_DisableAll", Default = Enum.KeyCode.H, Mode = "Toggle",
-        Callback = function() if canEzDisableAll then disableAll(false,false,false) end end
+        Callback = function()
+            if not uiReady or applyingConfig then return end
+            if canEzDisableAll then disableAll(false,false,false) end
+        end
     })
     keyActionSec:Label({ Name = "Disable Client-sided Enemies Only" }):Keybind({
         Flag = "KB_DisableClientOnly", Default = Enum.KeyCode.J, Mode = "Toggle",
-        Callback = function() if canEzDisableAllC then disableAll(false,true) end end
+        Callback = function()
+            if not uiReady or applyingConfig then return end
+            if canEzDisableAllC then disableAll(false,true) end
+        end
     })
     keyActionSec:Label({ Name = "Reset Double Jumps / Ability" }):Keybind({
         Flag = "KB_FullReset", Default = Enum.KeyCode.T, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canFullReset then return end
             local char = getChar(plr); local humanoid = char and getHuman(char)
             if char and humanoid and not isDead(plr) then
@@ -1654,6 +1671,7 @@ stage(function()
     keyActionSec:Label({ Name = "Bring Jump Pad" }):Keybind({
         Flag = "KB_BringPad", Default = Enum.KeyCode.Y, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canBringPad then return end
             local pad = pads:FindFirstChild("JumpPad"); local root = getRoot(getChar(plr))
             if pad and root and not isDead(plr) then
@@ -1664,6 +1682,7 @@ stage(function()
     keyActionSec:Label({ Name = "Bring Tria Orb" }):Keybind({
         Flag = "KB_BringTria", Default = Enum.KeyCode.Two, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canBringTria then return end
             local pad = pads:FindFirstChild("TriaOrb"); local root = getRoot(getChar(plr))
             if pad and root and not isDead(plr) then
@@ -1674,6 +1693,7 @@ stage(function()
     keyActionSec:Label({ Name = "Instant Grapple to Nearest Pad" }):Keybind({
         Flag = "KB_InstaGrapple", Default = Enum.KeyCode.Q, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canInstaGrapple or not canPress then return end
             canPress = false
             local target = GetClosestPad()
@@ -1694,6 +1714,7 @@ stage(function()
     keyActionSec:Label({ Name = "Glider Boost / Fly (HOLD)" }):Keybind({
         Flag = "KB_GliderBoost", Default = Enum.KeyCode.LeftAlt, Mode = "Hold",
         Callback = function(holding)
+            if not uiReady or applyingConfig then gliderBoost = false; return end
             if not holding then gliderBoost = false; return end
             if canGliderBoost then gliderBoost = holding end
         end
@@ -1701,6 +1722,7 @@ stage(function()
     keyActionSec:Label({ Name = "Teleport to Spawn" }):Keybind({
         Flag = "KB_GoHome", Default = Enum.KeyCode.Home, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canGoHome then return end
             local root, hitbox = getRoot(getChar(plr))
             local pos = spawnPart.Position + Vector3.new(0,4,0)
@@ -1711,6 +1733,7 @@ stage(function()
     keyActionSec:Label({ Name = "Teleport to Beacon" }):Keybind({
         Flag = "KB_GoBeacon", Default = Enum.KeyCode.Insert, Mode = "Toggle",
         Callback = function()
+            if not uiReady or applyingConfig then return end
             if not canGoBeacon then return end
             local root, hitbox = getRoot(getChar(plr))
             local pos = workspace.Beacon.Position + Vector3.new(0,4,0)
@@ -1720,7 +1743,10 @@ stage(function()
     })
     keyActionSec:Label({ Name = "Cancel Collecting" }):Keybind({
         Flag = "KB_CancelTween", Default = Enum.KeyCode.End, Mode = "Toggle",
-        Callback = function() if canCancelTween and tweening then tweening = false end end
+        Callback = function()
+            if not uiReady or applyingConfig then return end
+            if canCancelTween and tweening then tweening = false end
+        end
     })
 
     local function makeEnableToggle(label, flag, setter)
@@ -2288,6 +2314,11 @@ task.spawn(function()
     end)
 
     uiReady = true
+
+    -- Autoload: re-apply the saved config gradually now that every element
+    -- exists. Keybind action-fires are suppressed while this runs, so the
+    -- config only restores bindings/settings — it never triggers actions.
+    applyConfigStaged(savedAutoload)
 
     -- One-shot movement repair shortly after load. Mirrors what the gift
     -- collector does that "un-breaks" movement (zero velocity, sync Hitbox
