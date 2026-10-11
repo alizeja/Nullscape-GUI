@@ -27,11 +27,22 @@ function fireSig(signal, args:table)
     end
 end
 
+local hFunc = missing("function", hookfunction)
+
+function hook(target, hook)
+    if hFunc then
+        hFunc(target, hook)
+    else
+        notif("Your exploit doesn't have the ability to use this function.", "hookfunction")
+    end
+end
+
 --------------------------------------------------------
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
@@ -82,6 +93,9 @@ local destroyFolder = workspace.DestroyFolder
 local bullets = items.Bullet
 local counters = ReplicatedStorage.GiftCounters
 local magnet = events.MovementGiftMagnet
+local giftHandler = ReplicatedFirst.ClientModules.GiftClient.GiftClientHandler
+local handlerModules = giftHandler.Gifts
+local tripmineClient = handlerModules.TripmineClient
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -142,6 +156,8 @@ local velov = false
 local nrb = false
 local nfb = false
 local gliderBoost = false
+local tripmineOff = false
+
 local connections = {}
 
 local clientenemies = {
@@ -2307,6 +2323,23 @@ mapTab:CreateButton({
 })
 
 mapTab:CreateSection("Hazards")
+local tdr = mapTab:CreateToggle({
+    Name = "Disable Tripmines (ONLY WORKS WITH GOOD EXECUTORS)",
+    CurrentValue = tripmineOff,
+    Callback = function(Value)
+        if hFunc then
+            tripmineOff = Value
+
+            local reqTClient = require(tripmineClient)
+            local allowCollect = hook(reqTClient.Collect, function(...)
+                return if tripmineOff then nil else allowCollect(...)
+            end)
+        else
+            tripmineOff = false
+            warn("Your exploit doesn't support this function: hookfunction")
+        end
+    end
+})
 local tpt = mapTab:CreateToggle({
     Name = "Tripmine Protection (LAGGY ON VERY HIGH LEVELS)",
     CurrentValue = pt,
@@ -3150,6 +3183,11 @@ table.insert(connections, music.Changed:Connect(function()
     end
 end))
 
+table.insert(connections, workspace:GetAttributeChangedSignal("Cheated"):Connect(function()
+    notif("Game has detected your cheats.", "Anti-Cheat Triggered", 7.5)
+    events.NotifyBindable:Fire("<font color=\"#ff0000\">Anti-Cheat Triggered (NULL GUI)</font>", string.format("Your cheating has been <font color=\"#ff0000\">detected</font>."))
+end))
+
 ----loops!
 --local loopClosest
 --local giftSelection = {}
@@ -3623,6 +3661,9 @@ function destroyGui()
 
     RunService:UnbindFromRenderStep("Hazard")
     print("hazards unbinded")
+
+    tdr:Set(false)
+    print("tripmines re-enabled")
 
     tripmineprots:Destroy()
     tpt:Set(false)
