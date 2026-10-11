@@ -19,9 +19,9 @@ end
 
 local fSignal = missing("function", firesignal)
 
-function fireSig(signal, args:table)
+function fireSig(signal, ...)
     if fSignal then
-        fSignal(signal, args)
+        fSignal(signal, ...)
     else
         notif("Your exploit doesn't have the ability to use this function.", "firesignal")
     end
@@ -67,6 +67,7 @@ end
 local plr = Players.LocalPlayer
 
 local events = ReplicatedStorage.Events
+local remoteEvents = ReplicatedStorage.RemoteEvents
 
 local Camera = workspace.CurrentCamera
 local spawnPart = workspace.Spawn
@@ -96,6 +97,9 @@ local magnet = events.MovementGiftMagnet
 local giftHandler = ReplicatedFirst.ClientModules.GiftClient.GiftClientHandler
 local handlerModules = giftHandler.Gifts
 local tripmineClient = handlerModules.TripmineClient
+local invHandler = ReplicatedFirst.ClientModules.Core.PlayerData.InventoryHandler
+local invMod = require(invHandler)
+local replicaSet = remoteEvents.ReplicaSet
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -156,8 +160,6 @@ local velov = false
 local nrb = false
 local nfb = false
 local gliderBoost = false
-local tripmineOff = false
-
 local connections = {}
 
 local clientenemies = {
@@ -1148,6 +1150,30 @@ mainTab:CreateButton({
 --     end
 -- })
 
+mainTab:CreateSection("Class")
+local classLabel = mainTab:CreateLabel("Your exploit supports changing class.")
+if not fSignal then
+    classLabel:Set("Your exploit doesn't support changing class.")
+end
+
+local originalClass = plr:GetAttribute("Class")
+local ccd = mainTab:CreateDropdown({
+    Name = "Class",
+    Options = {"Diver", "Charger", "Grappler", "Spirit", "Wanted", "Wicked", "Glider", "Phoon"},
+    CurrentOption = {originalClass},
+    MultipleOptions = false,
+    Callback = function(v)
+        if fSignal then
+            local newClass = v[1]
+            
+            fireSig(replicaSet.OnClientEvent, invMod.GetReplica().Id, {"Class", "Equipped"}, "class/"..newClass)
+        else
+            warn("Your exploit doesn't support this function: firesignal")
+        end
+    end
+})
+
+
 mainTab:CreateDivider()
 local giftCounter = counters.Gift
 local goldgiftCounter = counters.GoldenGift
@@ -1180,6 +1206,7 @@ end))
 table.insert(connections, tripmineCounter.Changed:Connect(function()
     tripmineCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
 end))
+
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -2323,23 +2350,6 @@ mapTab:CreateButton({
 })
 
 mapTab:CreateSection("Hazards")
-local tdr = mapTab:CreateToggle({
-    Name = "Disable Tripmines (ONLY WORKS WITH GOOD EXECUTORS)",
-    CurrentValue = tripmineOff,
-    Callback = function(Value)
-        if hFunc then
-            tripmineOff = Value
-
-            local reqTClient = require(tripmineClient)
-            local allowCollect = hook(reqTClient.Collect, function(...)
-                return if tripmineOff then nil else allowCollect(...)
-            end)
-        else
-            tripmineOff = false
-            warn("Your exploit doesn't support this function: hookfunction")
-        end
-    end
-})
 local tpt = mapTab:CreateToggle({
     Name = "Tripmine Protection (LAGGY ON VERY HIGH LEVELS)",
     CurrentValue = pt,
@@ -3662,8 +3672,10 @@ function destroyGui()
     RunService:UnbindFromRenderStep("Hazard")
     print("hazards unbinded")
 
-    tdr:Set(false)
-    print("tripmines re-enabled")
+    if fSignal then
+        ccd:Set({originalClass})
+        print("back to original class")
+    end
 
     tripmineprots:Destroy()
     tpt:Set(false)
