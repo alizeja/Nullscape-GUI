@@ -19,21 +19,11 @@ end
 
 local fSignal = missing("function", firesignal)
 
-function fireSig(signal, ...)
+function fireSig(signal, args:table)
     if fSignal then
-        fSignal(signal, ...)
+        fSignal(signal, args)
     else
         notif("Your exploit doesn't have the ability to use this function.", "firesignal")
-    end
-end
-
-local hFunc = missing("function", hookfunction)
-
-function hook(target, hook)
-    if hFunc then
-        hFunc(target, hook)
-    else
-        notif("Your exploit doesn't have the ability to use this function.", "hookfunction")
     end
 end
 
@@ -42,7 +32,6 @@ end
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
@@ -67,7 +56,6 @@ end
 local plr = Players.LocalPlayer
 
 local events = ReplicatedStorage.Events
-local remoteEvents = ReplicatedStorage.RemoteEvents
 
 local Camera = workspace.CurrentCamera
 local spawnPart = workspace.Spawn
@@ -94,12 +82,6 @@ local destroyFolder = workspace.DestroyFolder
 local bullets = items.Bullet
 local counters = ReplicatedStorage.GiftCounters
 local magnet = events.MovementGiftMagnet
-local giftHandler = ReplicatedFirst.ClientModules.GiftClient.GiftClientHandler
-local handlerModules = giftHandler.Gifts
-local tripmineClient = handlerModules.TripmineClient
-local invHandler = ReplicatedFirst.ClientModules.Core.PlayerData.InventoryHandler
-local invMod = require(invHandler)
-local replicaSet = remoteEvents.ReplicaSet
 
 local tripmineprots = Instance.new("Folder")
 tripmineprots.Parent = workspace
@@ -1150,30 +1132,6 @@ mainTab:CreateButton({
 --     end
 -- })
 
-mainTab:CreateSection("Class")
-local classLabel = mainTab:CreateLabel("Your exploit supports changing class.")
-if not fSignal then
-    classLabel:Set("Your exploit doesn't support changing class.")
-end
-
-local originalClass = plr:GetAttribute("Class")
-local ccd = mainTab:CreateDropdown({
-    Name = "Class",
-    Options = {"Diver", "Charger", "Grappler", "Spirit", "Wanted", "Wicked", "Glider", "Phoon"},
-    CurrentOption = {originalClass},
-    MultipleOptions = false,
-    Callback = function(v)
-        if fSignal then
-            local newClass = v[1]
-            
-            fireSig(replicaSet.OnClientEvent, invMod.GetReplica().Id, {"Class", "Equipped"}, "class/"..newClass)
-        else
-            warn("Your exploit doesn't support this function: firesignal")
-        end
-    end
-})
-
-
 mainTab:CreateDivider()
 local giftCounter = counters.Gift
 local goldgiftCounter = counters.GoldenGift
@@ -1206,7 +1164,6 @@ end))
 table.insert(connections, tripmineCounter.Changed:Connect(function()
     tripmineCountLabel:Set("Tripmines Activated: "..tostring(tripmineCounter:GetAttribute("Collected")).."/"..tostring(tripmineCounter:GetAttribute("MaxGifts")).." | Remaining: "..tostring(tripmineCounter.Value))
 end))
-
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -3193,11 +3150,6 @@ table.insert(connections, music.Changed:Connect(function()
     end
 end))
 
-table.insert(connections, workspace:GetAttributeChangedSignal("Cheated"):Connect(function()
-    notif("Game has detected your cheats.", "Anti-Cheat Triggered", 7.5)
-    events.NotifyBindable:Fire("<font color=\"#ff0000\">Anti-Cheat Triggered (NULL GUI)</font>", string.format("Your cheating has been <font color=\"#ff0000\">detected</font>."))
-end))
-
 ----loops!
 --local loopClosest
 --local giftSelection = {}
@@ -3671,11 +3623,6 @@ function destroyGui()
 
     RunService:UnbindFromRenderStep("Hazard")
     print("hazards unbinded")
-
-    if fSignal then
-        ccd:Set({originalClass})
-        print("back to original class")
-    end
 
     tripmineprots:Destroy()
     tpt:Set(false)
